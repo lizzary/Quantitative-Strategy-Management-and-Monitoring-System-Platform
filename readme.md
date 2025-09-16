@@ -526,7 +526,7 @@ class ApiConfig(AppConfig):
 假设我们要创建一个名为 `ArbitrageStrategy` 的角色。
 
 **1. 定义标签模型**
-创建 `labels/models/game_labels.py`：
+创建 `labels/models/strategy1_labels.py`：
 ```python
 from django.db import models
 from labels.models.base_label import BaseLabel
@@ -545,12 +545,12 @@ class SharpeRatioLabel(BaseLabel):
 ```
 
 **2. 定义容器模型**
-创建 `containers/models/game_containers.py`：
+创建 `containers/models/strategygy1_containers.py`：
 ```python
 from django.db import models
 from containers.models.base_container import BaseContainer
 from containers.models.container_label_field import ContainerLabelField
-from labels.models.quant_labels import SymbolPairLabel, CapitalLabel, SharpeRatioLabel
+from labels.models.strategy1_labels import SymbolPairLabel, CapitalLabel, SharpeRatioLabel
 
 class BasicConfigContainer(BaseContainer):
     # 关联标签模型
@@ -562,7 +562,7 @@ class PerformanceContainer(BaseContainer):
 ```
 
 **3. 定义角色模型**
-创建 `characters/models/game_character.py`：
+创建 `characters/models/strategy1.py`：
 ```python
 from django.db import models
 from strategies.models.base_strategy import BaseStrategy
