@@ -1,5 +1,7 @@
 # 量化策略管理与监控系统 | Quantitative Strategy Management and Monitoring System Platform
 
+**The project is Perry Wong's graduation project at the Hong Kong University of Science and Technology. Perry Wong holds all rights to this project, and prior to using and distributing it, please refer to the project's open-source license.**
+
 [简体中文](#简体中文) | [繁体中文](#繁体中文) | [English](#english)
 
 <a name="english"></a>
