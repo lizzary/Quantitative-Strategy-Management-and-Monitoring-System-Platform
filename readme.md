@@ -1,6 +1,6 @@
 # My Project
 
-[English](#english) | [简体中文](#简体中文) | [繁体中文](#繁体中文)
+[English](#english) | [繁体中文](#繁体中文) | [简体中文](#简体中文)
 
 <a name="english"></a>
 ## English Version
