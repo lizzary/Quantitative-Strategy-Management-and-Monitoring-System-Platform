@@ -353,7 +353,7 @@ flowchart TD
 
 ## 5. 事件系统与触发器集成
 
-详细的实现： [[#6. 核心模块详解：事件引擎 (EventBus)]]
+详细的实现： 8. 核心模块详解：事件引擎 (EventBus)
 ### 5.1 工作原理
 1.  **定义触发器**: 在自定义标签模型类中，使用 `@LabelTriggerManager.register_trigger` 装饰器来装饰 `trigger_0` 和 `trigger_1` 方法，并指定其监听模式、监听的事件以及触发后要发布的事件。
 2.  **注册触发器**: 项目启动时，`LabelTriggerManager` 会扫描所有标签类，将其触发器函数信息记录到全局字典 `trigger_hash_tabel` 中。
@@ -1435,7 +1435,7 @@ flowchart TD
 
 ## 5. 事件系統與觸發器集成
 
-詳細的實現： [[#6. 核心模塊詳解：事件引擎 (EventBus)]]
+詳細的實現： 8. 核心模塊詳解：事件引擎 (EventBus)
 ### 5.1 工作原理
 1.  **定義觸發器**: 在自定義標簽模型類中，使用 `@LabelTriggerManager.register_trigger` 裝飾器來裝飾 `trigger_0` 和 `trigger_1` 方法，幷指定其監聽模式、監聽的事件以及觸發後要發布的事件。
 2.  **注册觸發器**: 項目啓動時，`LabelTriggerManager` 會掃描所有標簽類，將其觸發器函數信息記錄到全域字典 `trigger_hash_tabel` 中。
@@ -2509,7 +2509,7 @@ flowchart TD
 
 ## 5. Event System and Trigger Integration
 
-Detailed implementation: [[#6. Core Module Details: Event Engine (EventBus)]]
+Detailed implementation: 8. Core Module Details: Event Engine (EventBus)
 ### 5.1 How It Works
 1.  **Define Triggers**: In a custom Label model class, decorate the `trigger_0` and `trigger_1` methods with the `@LabelTriggerManager.register_trigger` decorator, specifying their listener mode, the event(s) to listen for, and the event to publish after triggering.
 2.  **Register Triggers**: When the project starts, `LabelTriggerManager` scans all Label classes and records their trigger function information into the global dictionary `trigger_hash_tabel`.
