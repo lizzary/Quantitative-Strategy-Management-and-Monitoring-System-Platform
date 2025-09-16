@@ -10,7 +10,7 @@ This is the English description of my project...
 <a name="简体中文"></a>
 
 ---
-
+## 简体中文版
 # 量化策略管理与监控系统 - 核心架构开发文档
 
 ## 1. 概述
