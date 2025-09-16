@@ -1,4 +1,4 @@
-# My Project
+# 量化策略管理与监控系统 | Quantitative Strategy Management and Monitoring System Platform
 
 [简体中文](#简体中文) | [繁体中文](#繁体中文) | [English](#english)
 
