@@ -3,11 +3,7 @@
 **The project is Perry Wong's graduation project at the Hong Kong University of Science and Technology. Perry Wong holds all rights to this project, and prior to using and distributing it, please refer to the project's open-source license.**
 
 [简体中文](#简体中文) | [繁体中文](#繁体中文) | [English](#english)
-
-<a name="english"></a>
-## English Version
-
-This is the English description of my project...
+---
 
 <a name="简体中文"></a>
 
