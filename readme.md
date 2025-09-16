@@ -7,8 +7,9 @@
 
 <a name="简体中文"></a>
 
+
 ---
-## 简体中文版
+
 # 量化策略管理与监控系统 - 核心架构开发文档
 
 ## 1. 概述
@@ -236,10 +237,41 @@ flowchart TD
 **角色关联字段**:
 `CharacterContainerField` 是一个预设的 `OneToOneField`，用于在角色子类中关联容器模型。
 
----
-## 3. 模型注册系统
+___
 
-### 3.1 模型注册机制 (`ModelRegister`)
+## 3. 核心模块详解：全局模型实例哈希表
+
+**位置**: `/api/models/instance_hash_table/instance_hash_table.py`
+**职责**: `InstanceHashTable` 是一个通用的哈希表模型，使用Django的ContentTypes框架为系统中的任意模型实例提供全局唯一的UUID标识符。这个模块实现了模型实例与UUID之间的双向映射，为系统提供了统一的实例标识和检索机制。
+
+### 3.1 核心字段
+- `hash_value: models.UUIDField`：存储模型实例的唯一UUID标识符
+- `content_type: models.ForeignKey(ContentType)`：关联到Django的ContentType模型，记录目标实例的模型类型  
+- `object_id: models.PositiveIntegerField`：关联到Django的ContentType模型，记录目标实例的模型类型
+- `content_object: GenericForeignKey('content_type', 'object_id')`：通用外键字段，提供对实际模型实例的直接访问
+
+### 3.2 核心方法
+
+`get_uuid_for_instance(instance) -> str | None`：静态方法，获取指定模型实例在哈希表中的UUID标识符
+
+**参数**:
+- `instance` - 任意Django模型实例
+**返回值**:
+- `str` - 实例的UUID字符串（如果存在）
+- `None` - 如果哈希表中没有该实例的记录
+
+`get_instance_by_uuid(uuid_str: str) -> object | None`：静态方法，通过UUID字符串检索对应的模型实例
+
+**参数**:
+- `uuid_str: str` - UUID字符串
+**返回值**:
+- `object` - 找到的模型实例
+- `None` - 如果UUID无效或找不到对应的实例
+
+---
+## 4. 模型注册系统
+
+### 4.1 模型注册机制 (`ModelRegister`)
 
 **位置**: `api/models/register.py`
 **职责**: 自动发现和注册所有自定义的标签、容器和角色模板模型，确保它们被系统正确识别和管理。
@@ -302,7 +334,7 @@ sequenceDiagram
     ModelRegister-->>Startup: 验证通过/报错退出
 ```
 
-### 3.2 模型注册系统检查
+### 4.2 模型注册系统检查
 
 确保 `admin.py` 被正确导入，以便注册所有模型到管理后台。
 
@@ -353,7 +385,7 @@ flowchart TD
 
 ## 5. 事件系统与触发器集成
 
-详细的实现： 8. 核心模块详解：事件引擎 (EventBus)
+详细的实现： [[#7. 核心模块详解：事件引擎 (EventBus)]]
 ### 5.1 工作原理
 1.  **定义触发器**: 在自定义标签模型类中，使用 `@LabelTriggerManager.register_trigger` 装饰器来装饰 `trigger_0` 和 `trigger_1` 方法，并指定其监听模式、监听的事件以及触发后要发布的事件。
 2.  **注册触发器**: 项目启动时，`LabelTriggerManager` 会扫描所有标签类，将其触发器函数信息记录到全局字典 `trigger_hash_tabel` 中。
@@ -485,7 +517,7 @@ sequenceDiagram
     API-->>User: 操作成功响应
 ```
 
-## 6. 使用流程 (How-To)
+## 6. 使用与插件开发
 
 ### 6.1 系统初始化与启动
 
@@ -522,11 +554,31 @@ class ApiConfig(AppConfig):
     *   可以创建、编辑、删除角色、容器和标签实例。
     *   删除操作会自动处理级联关系（如删除容器会删除关联的标签）。
 
-### 6.3 创建一个全新的角色类型
+### 6.3 开发以及导入插件
+
+开发新策略监控项目，本质在本项目的对应app下创建新模型，并遵循上述 `BaseCharacter`, `BaseContainer`, `BaseLabel` 的继承体系定义一套新的模型。
+
+**步骤**:
+1.  **规划**: 确定新角色需要哪些数据（标签），如何分组（容器）。
+2.  **创建模型**:
+    *   在 `labels/models/` 下创建 `your_plugin_labels.py`，定义所有标签模型。
+    *   在 `containers/models/` 下创建 `your_plugin_containers.py`，定义容器模型并使用 `ContainerLabelField` 关联上一步的标签。
+    *   在 `characters/models/` 下创建 `your_plugin_character.py`，定义角色模板模型并使用 `CharacterContainerField` 关联上一步的容器。
+3.  **实现逻辑**:
+    *   在标签模型中重写 `trigger_0` 和 `trigger_1` 方法，并使用 `LabelTriggerManager.register_trigger` 装饰器定义其事件行为。
+4.  **注册迁移**: 确保新模型文件被正确导入，然后运行 `makemigrations` 和 `migrate`。
+5.  **提供API** (可选): 如果需要，创建新的API视图来处理这个新角色类型的特定操作（如释放技能、更换装备）。
+
+**注意事项**:
+*   模型的定义和迁移是插件化的核心。
+*   充分理解 `used_in_container` 和 `used_in_character` 字段的维护机制，避免在自定义的 `save` 或 `delete` 逻辑中破坏它。
+*   触发器装饰器的参数配置是关键，需要清晰理解事件总线的工作模式。
+
+**实操**：
 假设我们要创建一个名为 `ArbitrageStrategy` 的角色。
 
 **1. 定义标签模型**
-创建 `labels/models/strategy1_labels.py`：
+创建 `labels/models/quant_labels.py`：
 ```python
 from django.db import models
 from labels.models.base_label import BaseLabel
@@ -545,12 +597,12 @@ class SharpeRatioLabel(BaseLabel):
 ```
 
 **2. 定义容器模型**
-创建 `containers/models/strategygy1_containers.py`：
+创建 `containers/models/quant_label_containers.py`：
 ```python
 from django.db import models
 from containers.models.base_container import BaseContainer
 from containers.models.container_label_field import ContainerLabelField
-from labels.models.strategy1_labels import SymbolPairLabel, CapitalLabel, SharpeRatioLabel
+from labels.models.quant_labels import SymbolPairLabel, CapitalLabel, SharpeRatioLabel
 
 class BasicConfigContainer(BaseContainer):
     # 关联标签模型
@@ -562,17 +614,17 @@ class PerformanceContainer(BaseContainer):
 ```
 
 **3. 定义角色模型**
-创建 `characters/models/strategy1.py`：
+创建 `characters/models/some_strategy.py`：
 ```python
 from django.db import models
 from strategies.models.base_strategy import BaseStrategy
-from strategies.models.strategy_container_field import StrategyContainerField
-from containers.models.quant_containers import BasicConfigContainer, PerformanceContainer
+from characters.models.character_container_field import CharacterContainerField
+from containers.models.quant_label_containers import BasicConfigContainer, PerformanceContainer
 
 class ArbitrageStrategy(BaseStrategy):
     # 关联容器模型
-    basic_config = StrategyContainerField(to=BasicConfigContainer)
-    performance = StrategyContainerField(to=PerformanceContainer)
+    basic_config = CharacterContainerField(to=BasicConfigContainer)
+    performance = CharacterContainerField(to=PerformanceContainer)
 ```
 
 **4. 更新数据库**
@@ -583,9 +635,41 @@ python manage.py migrate
 ```
 
 **5. （可选）为标签添加触发器**
-编辑 `game_labels.py`，如前文所述，为 `HealthLabel` 等添加 `@LabelTriggerManager.register_trigger` 装饰的逻辑。
+编辑 `quant_labels.py`，如前文所述，为 `CapitalLabel` 等添加 `@LabelTriggerManager.register_trigger` 装饰的逻辑。
 
-#### 6.3.1 创建新角色类型流程图
+#### 6.3.1 插件的模型结构图
+```mermaid
+graph TB
+    subgraph "新角色插件"
+        NewCharacter[新角色模板模型]
+        NewContainer1[新容器模型1]
+        NewContainer2[新容器模型2]
+        NewLabel1[新标签模型1]
+        NewLabel2[新标签模型2]
+        NewLabel3[新标签模型3]
+        
+        NewCharacter --> NewContainer1
+        NewCharacter --> NewContainer2
+        NewContainer1 --> NewLabel1
+        NewContainer1 --> NewLabel2
+        NewContainer2 --> NewLabel3
+    end
+    
+    subgraph "核心框架"
+        BaseCharacter[BaseCharacter]
+        BaseContainer[BaseContainer]
+        BaseLabel[BaseLabel]
+    end
+    
+    NewCharacter --> BaseCharacter
+    NewContainer1 --> BaseContainer
+    NewContainer2 --> BaseContainer
+    NewLabel1 --> BaseLabel
+    NewLabel2 --> BaseLabel
+    NewLabel3 --> BaseLabel
+```
+
+#### 6.3.2 创建新角色类型流程图
 ```mermaid
 flowchart TD
     A[创建新角色类型] --> B[定义标签模型]
@@ -659,68 +743,12 @@ sequenceDiagram
 ```
 ---
 
-## 7. 插件开发指南
-
-开发新策略监控项目，本质就是创建新的Django App（或在本项目的对应app下创建新模块），并遵循上述 `BaseCharacter`, `BaseContainer`, `BaseLabel` 的继承体系定义一套新的模型。
-
-**步骤**:
-1.  **规划**: 确定新角色需要哪些数据（标签），如何分组（容器）。
-2.  **创建模型**:
-    *   在 `labels/models/` 下创建 `your_plugin_labels.py`，定义所有标签模型。
-    *   在 `containers/models/` 下创建 `your_plugin_containers.py`，定义容器模型并使用 `ContainerLabelField` 关联上一步的标签。
-    *   在 `characters/models/` 下创建 `your_plugin_character.py`，定义角色模板模型并使用 `CharacterContainerField` 关联上一步的容器。
-3.  **实现逻辑**:
-    *   在标签模型中重写 `trigger_0` 和 `trigger_1` 方法，并使用 `LabelTriggerManager.register_trigger` 装饰器定义其事件行为。
-4.  **注册迁移**: 确保新模型文件被正确导入，然后运行 `makemigrations` 和 `migrate`。
-5.  **提供API** (可选): 如果需要，创建新的API视图来处理这个新角色类型的特定操作（如释放技能、更换装备）。
-
-**注意事项**:
-*   模型的定义和迁移是插件化的核心。
-*   充分理解 `used_in_container` 和 `used_in_character` 字段的维护机制，避免在自定义的 `save` 或 `delete` 逻辑中破坏它。
-*   触发器装饰器的参数配置是关键，需要清晰理解事件总线的工作模式。
-
-好的，根据您提供的详细代码和描述，我将为您撰写事件引擎 (`EventBus`) 和标签触发器管理器 (`LabelTriggerManager`) 这两个核心模块的开发文档。这些文档将集成到您提供的初始文档结构中。
-
-### 7.1 插件开发组件关系图
-```mermaid
-graph TB
-    subgraph "新角色插件"
-        NewCharacter[新角色模板模型]
-        NewContainer1[新容器模型1]
-        NewContainer2[新容器模型2]
-        NewLabel1[新标签模型1]
-        NewLabel2[新标签模型2]
-        NewLabel3[新标签模型3]
-        
-        NewCharacter --> NewContainer1
-        NewCharacter --> NewContainer2
-        NewContainer1 --> NewLabel1
-        NewContainer1 --> NewLabel2
-        NewContainer2 --> NewLabel3
-    end
-    
-    subgraph "核心框架"
-        BaseCharacter[BaseCharacter]
-        BaseContainer[BaseContainer]
-        BaseLabel[BaseLabel]
-    end
-    
-    NewCharacter --> BaseCharacter
-    NewContainer1 --> BaseContainer
-    NewContainer2 --> BaseContainer
-    NewLabel1 --> BaseLabel
-    NewLabel2 --> BaseLabel
-    NewLabel3 --> BaseLabel
-```
----
-
-
-## 8. 核心模块详解：事件引擎 (EventBus)
+## 7. 核心模块详解：事件引擎 (EventBus)
 
 **位置**: `api/event/event_engine.py`
 **职责**: 提供一个强大的、基于队列的事件驱动架构核心。它负责事件的发布、存储、调度，并根据预定义的监听模式（Immediate, Delayed, Joint, Pattern）触发相应的回调函数。每个用户拥有独立的事件总线实例，通过 `EventBusObjectPool` 进行管理，确保了用户间的事件隔离。
 
-### 8.1 核心类与数据结构
+### 7.1 核心类与数据结构
 
 **`EventBus` 类**:
 
@@ -775,11 +803,11 @@ flowchart TD
     M --> N[Event Processing Done]
 ```
 
-### 8.2 监听模式 (Listener Types)
+### 7.2 监听模式 (Listener Types)
 
 1.  **`IMMEDIATE` (立即触发)**:
     *   **行为**: 监听特定事件 `source`。当 `source` 事件被处理时，所有关联的回调函数被立即调用。
-    *   **应用**: 最常用，用于对事件做出即时反应，如受伤扣血、获得经验。
+    *   **应用**: 最常用，用于对事件做出即时反应。
 
 2.  **`DELAY` (延迟触发)**:
     *   **行为**: 监听特定事件 `source`。当 `source` 事件被处理时，并不立即执行回调，而是计算一个未来的触发点 `trigger_at = current_event_count + delay`，并将任务放入最小堆。系统会在处理每个事件后检查堆顶，如果 `trigger_at <= current_event_count`，则执行回调。
@@ -794,7 +822,7 @@ flowchart TD
     *   **行为**: 监听一个事件序列 `pattern`。要求事件**按顺序**匹配给定的模式，`*` 可以匹配任意一个事件。匹配成功后触发回调，然后重置状态机。
     *   **应用**: 实现连招系统、解锁特定成就（需要按顺序执行操作）、解析命令行指令。
 
-### 8.3 核心方法流程
+### 7.3 核心方法流程
 
 **`publish(event: str)`**:
 1.  将事件字符串 `event` 放入 `event_bus` 队列。
@@ -829,7 +857,7 @@ flowchart TD
 *   `@listen_pattern_matcher(pattern)`
 *   `@publish_event(event)`: **特殊装饰器**。它装饰一个函数，并返回一个包装函数。当被装饰的函数执行后，包装函数会自动发布指定的事件 `event`。这用于实现**事件链**（一个触发器的执行会导致新事件的发布）。
 
-### 8.4 数据流
+### 7.4 数据流
 1.  **事件产生**: 由 API 视图（如 `LabelTriggerView`）、或其他后台逻辑调用 `event_bus_instance.publish("some_event")`。
 2.  **事件入列**: 事件被加入 `event_bus` 队列。
 3.  **事件处理**: `process_one_step()` 被循环调用（通常在API请求的上下文中，或由后台任务调用）。
@@ -839,6 +867,86 @@ flowchart TD
 
 ---
 
+## 8. 核心模块详解：事件引擎对象池
+
+### 8.1 核心字段与方法
+
+位置：`/api/event/eventbus_object_pool.py`
+职责：`EventBusObjectPool` 是一个线程安全的事件总线对象池，用于为每个用户提供独立的事件总线实例。这种设计确保了不同用户的事件流完全隔离，避免了用户间的事件干扰，同时通过对象池模式提高了资源利用效率。
+
+
+**核心字段**：
+- `eventBusObjectPool: Dict[str, 'EventBus']`：存储用户ID到事件总线实例的映射，格式为`{"用户ID字符串": EventBus实例, ...}`
+- `pool_lock: threading.RLock`：可重入锁，用于保证多线程环境下对对象池的安全访问
+
+
+**核心方法**：
+`get_for_user(user_id: int) -> EventBus`： 获取指定用户的事件总线实例。如果该用户的事件总线不存在，则创建一个新实例并添加到对象池中。
+1. 将用户ID转换为字符串格式
+2. 获取线程锁，确保线程安全
+3. 检查对象池中是否已存在该用户的事件总线实例
+4. 如果不存在，创建新的事件总线实例并添加到对象池中
+5. 返回该用户的事件总线实例
+
+`exist(user_id: int) -> bool`：检查指定用户的事件总线实例是否已存在于对象池中
+1. 将用户ID转换为字符串格式
+2. 记录调试日志，输出当前对象池状态
+3. 检查对象池中是否包含该用户的事件总线实例
+
+### 8.2 **模块交互**：
+`EventBusObjectPool` 与事件引擎(`EventBus`)和标签触发器管理器(`LabelTriggerManager`)紧密集成，工作流程如下：
+
+```mermaid
+sequenceDiagram
+    participant API
+    participant ObjectPool as EventBusObjectPool
+    participant EventBus
+    participant TriggerManager as LabelTriggerManager
+    
+    API->>ObjectPool: get_for_user(user_id)
+    ObjectPool->>ObjectPool: 检查/创建EventBus实例
+    ObjectPool-->>API: 返回EventBus实例
+    
+    API->>TriggerManager: install_instance(标签实例)
+    TriggerManager->>TriggerManager: 更新触发器哈希表
+    
+    API->>TriggerManager: install_eventbus(EventBus实例)
+    TriggerManager->>EventBus: 注册所有监听器
+    
+    Note over EventBus: 事件总线准备就绪
+    API->>EventBus: publish(事件)
+    EventBus->>EventBus: 处理事件
+    EventBus->>相应标签: 触发回调函数
+```
+
+
+在 `StartEventBusEngine` API视图中，使用 `EventBusObjectPool` 获取用户的事件总线实例：
+
+```python
+class StartEventBusEngine(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user_id = self.request.user.id
+        try:
+            # 从对象池获取用户的事件总线实例
+            eventbus = EventBusObjectPool.get_for_user(user_id)
+            
+            # 安装标签实例和事件总线
+            for character_instance in self.__get_all_characters_from_user(user):
+                # ... 遍历所有标签实例
+                LabelTriggerManager.install_instance(label_instance)
+            
+            LabelTriggerManager.install_eventbus(eventbus)
+            
+            return Response({"message":f'event engine of user id {user_id} started'})
+        except Exception as e:
+            # 异常处理
+```
+
+
+___
+
 ## 9. 核心模块详解：标签触发器管理器 (LabelTriggerManager)
 
 **位置**: `labels/models/label_trigger_manager.py`
@@ -846,7 +954,7 @@ flowchart TD
 
 ### 9.1 核心数据结构: `trigger_hash_tabel`
 
-这是一个全局的、模块级的字典，是管理器的核心。其结构设计精巧，包含了类级别的配置和实例引用。
+这是一个全局的、模块级的字典，是管理器的核心。其结构包含了类级别的配置和实例引用。
 
 ```python
 {
@@ -1081,6 +1189,8 @@ sequenceDiagram
 **作用**: 为前端提供一个通用的接口，手动触发某个标签的特定动作，并推动事件链的进行。例如，前端一个"执行回测"按钮可以调用此 API 来触发一个策略的"夏普比率"标签的 `trigger_0`（计算绩效指标）动作，这可能进一步触发风险评估和报表生成等后续事件。
 
 (有关第10章API接口的文档随项目更新中，上次更新日期： 29-8-2025)
+
+
 
 
 
@@ -2173,18 +2283,18 @@ sequenceDiagram
 
 ---
 ## English Version
----
 
+---
 # Quantitative Strategy Management and Monitoring System - Core Architecture Development Documentation
 
 ## 1. Overview
 
-The core of this project is to build a highly dynamic and scalable quantitative strategy management and monitoring system. This system automates the development, deployment, and evaluation of quantitative strategies from five aspects: batch deployment, operation, monitoring, tracking, and archiving. Its cornerstone is the **"One Label, One Model"** design philosophy. This system allows developers or advanced users to define entirely new strategy monitoring projects from scratch by creating Django models, including their data structures (Labels), organizational methods (Containers), and complex data interaction logic (event-driven Triggers).
+The core of this project is to build a highly dynamic and extensible quantitative strategy management and monitoring system. This system automates the development, deployment, and evaluation of quantitative strategies from five aspects: batch deployment, operation, monitoring, tracking, and archiving. Its cornerstone is the **"One Label, One Model"** design philosophy. This system allows developers or advanced users to define entirely new strategy monitoring projects from scratch by creating Django models, including their data structures (Labels), organizational methods (Containers), and complex data interaction logic (event-driven Triggers).
 
 ### 1.1 Core Concepts
-*   **Character**: Defines the blueprint for a quantitative strategy. Examples: `Arbitrage Strategy`, `Mean Reversion Strategy`, `Dollar-Cost Averaging Strategy`.
-*   **Container**: Used for the logical grouping of quantitative strategies. Examples: `Basic Information`, `Model Parameters`, `Evaluation Metrics`. A Character is composed of multiple Containers.
-*   **Label**: The most fundamental data unit of a Character, representing a specific attribute. Examples: `Trading Frequency`, `Max Drawdown`, `Last Trade Time`, `Sharpe Ratio`. Each Label is an independent Django model. Labels are placed within Containers.
+*   **Character**: Defines a blueprint for a quantitative strategy. For example: `Arbitrage Strategy`, `Mean Reversion Strategy`, `Dollar-Cost Averaging Strategy`.
+*   **Container**: Used for logical grouping of quantitative strategies. For example: `Basic Information`, `Model Parameters`, `Evaluation Metrics`. A Character is composed of multiple Containers.
+*   **Label**: The most fundamental data unit of a Character, representing a specific attribute. For example: `Trading Frequency`, `Max Drawdown`, `Last Trade Time`, `Sharpe Ratio`. Each Label is an independent Django model. Labels are placed within Containers.
 
 ```mermaid
 graph TB
@@ -2219,16 +2329,16 @@ graph TB
 ```
 User (User)
 │
-└── Owns Many (1:N) → Characters (BaseCharacter Subclass)
+└── Owns Many (1:N) → Character (BaseCharacter Subclass)
     │
-    └── Contains Many (1:N) → Container Instances (BaseContainer Subclass)
+    └── Contains Many (1:N) → Container Instance (BaseContainer Subclass)
         │
-        └── Contains One (1:N) → Label Instances (BaseLabel Subclass)
+        └── Contains One (1:N) → Label Instance (BaseLabel Subclass)
 ```
 **Relationship Constraints**:
-*   One **Character Template Class** corresponds to one Character type.
-*   One **Character Instance** is associated with multiple **Container Instances** via `OneToOneField`.
-*   One **Container Instance** is associated with multiple **Label Instances** via `OneToOneField`.
+*   One **Character Template Class** corresponds to one type of Character.
+*   One **Character Instance** associates with multiple **Container Instances** via `OneToOneField`.
+*   One **Container Instance** associates with multiple **Label Instances** via `OneToOneField`.
 *   One **Label Model** defines one type of data (e.g., `Trading Frequency`).
 *   One **Label Instance** can only belong to one **Container**. Its `used_in_container` field records the class name of the owning Container.
 *   One **Container Instance** can only belong to one **Character**. Its `used_in_character` field records the class name of the owning Character template.
@@ -2291,79 +2401,79 @@ classDiagram
     note for BaseContainer "used_in_container: Records the class name of the label's owner\nused_in_character: Records the class name of the character's owner"
     note for BaseLabel "used_in_container: Records the class name of the container it belongs to"
 ```
----
 
+---
 ## 2. Core Models Explained: Database Structure
 
 ### 2.1 Label Model (`BaseLabel`)
 
 **Location**: `labels/models/base_label.py`
-**Responsibility**: Abstract base class for all Label models. Defines the basic structure and behavior of a Label.
+**Responsibility**: Abstract base class for all label models. Defines the basic structure and behavior of a Label.
 
 **Core Fields**:
 *   `label_name` (`LabelNameField`): The name of the label, e.g., "Trading Frequency", "Last Trade Time".
-*   `label_value` (`LabelTextField`): The value of the label. **Note**: In actual custom Labels, you should override this field with a more appropriate type (e.g., `IntegerField`, `CharField`).
+*   `label_value` (`LabelTextField`): The value of the label. **Note**: In actual custom labels, you should override this field with a more appropriate type (e.g., `IntegerField`, `CharField`).
 *   `label_type` (`LabelChoiceField`): The interaction type of the label, which will be reflected in the WebUI (e.g., read-only, interactive).
-*   `label_display_format` (`LabelDisplayFormatField`): A format string controlling how the label is displayed on the frontend. The default format is `'<Label Name>: <Separator><Label Value>'`. Developers can customize the display style by combining `<label_name>`, `<label_value>`, and `<separator>` (for visual grouping); the system will automatically replace the placeholders. This field is validated upon save to ensure the format is valid.
-*   `used_in_container` (`LabelsContainerField`): **A string field** used to record the class name of the Container instance to which this Label instance belongs. This is a crucial metadata field for maintaining the ownership relationship between Labels and Containers and is validated during Container cleanup (`clean()`).
+*   `label_display_format` (`LabelDisplayFormatField`): A format string controlling how the label is displayed on the frontend. The default format is `'<Label Name>: <Separator><Label Value>'`. Developers can customize the display style by combining `<label_name>`, `<label_value>`, and `<separator>` (for visual grouping), and the system will automatically replace the placeholders. This field is validated upon save to ensure the format is valid.
+*   `used_in_container` (`LabelsContainerField`): **A string field** used to record the class name of the container to which this label instance belongs. This is a crucial metadata field for maintaining the ownership relationship between labels and containers and is validated during container cleanup (`clean()`).
 
 **Core Methods**:
-*   `get_name()`, `get_value()`: Final methods to get the Label's name and value.
-*   `trigger_0()`, `trigger_1()`: Empty methods. Intended to be overridden in subclasses to define the Label's behavior when triggered. Often appear in pairs representing mutually exclusive operations (e.g., `Buy/Sell`).
-*   `save()`: Overrides the Django model's save method. When a new Label instance is created (`self._state.adding` is `True`), it automatically registers a record in the global `InstanceHashTable`. **This mechanism is key to implementing the dynamic architecture and cross-model instance tracking**, enabling the system to be aware of and manage all created instances, regardless of their specific model.
-*   `delete()`: Overrides the Django model's delete method. Before deleting the Label instance itself, it deregisters the corresponding record from the `InstanceHashTable`, maintaining data consistency in the hash table.
+*   `get_name()`, `get_value()`: Final methods to get the label's name and value.
+*   `trigger_0()`, `trigger_1()`: Empty methods. Expected to be overridden in subclasses to define the label's behavior when triggered. Often appear in pairs, representing mutually exclusive operations (e.g., `Buy/Sell`).
+*   `save()`: Overrides the Django model's save method. When a new label instance is created (`self._state.adding` is `True`), it automatically registers a record in the global `InstanceHashTable`. **This mechanism is key to implementing the dynamic architecture and cross-model instance tracking**, enabling the system to be aware of and manage all created instances, regardless of their specific model.
+*   `delete()`: Overrides the Django model's delete method. Before deleting the label instance itself, it first deregisters the corresponding record from the `InstanceHashTable`, maintaining data consistency in the hash table.
 
 **Inheritance and Usage**:
-To create a new custom Label, you must inherit from this `BaseLabel` abstract class and at least override the `label_value` field to define the correct data type. Additionally, you should implement the `trigger_0` and `trigger_1` methods as needed to complete the interaction logic.
+To create a new custom label, you must inherit from this `BaseLabel` abstract class and at least override the `label_value` field to define the correct data type. Additionally, you should implement the `trigger_0` and `trigger_1` methods as needed to complete the interaction logic.
 
 ### 2.2 Preset Label Fields (`label_field.py`)
 
 **Location**: `labels/models/label_field.py`
-**Responsibility**: Provides a series of preset Django model field classes, pre-configured with default metadata (like `verbose_name`) suitable for the Label system. They are primarily used for quickly and consistently declaring fields when defining specific Label models.
+**Responsibility**: Provides a series of preset Django model field classes, which are pre-configured with default metadata (like `verbose_name`) suitable for the label system. They are primarily used for quickly and standardly declaring fields when defining specific label models.
 
 **Field List and Description**:
 
-- `LabelNameField`: Inherits from `CharField`. Used for the Label name, default `verbose_name='Label Name'`.
+- `LabelNameField`: Inherits from `CharField`. Used for label names, default `verbose_name='Label Name'`.
 - `LabelCharField`: Inherits from `CharField`. Used for short text values, default `verbose_name='Label Value'`.
 - `LabelTextField`: Inherits from `TextField`. Used for long text values, default `verbose_name='Label Value'`.
 - `LabelIntegerField`: Inherits from `IntegerField`. Used for integer values, default `verbose_name='Label Value'`.
-- `LabelFloatField`: Inherits from `FloatField`. Used for float values, default `verbose_name='Label Value'`.
+- `LabelFloatField`: Inherits from `FloatField`. Used for floating-point values, default `verbose_name='Label Value'`.
 - `LabelDateField`, `LabelDateTimeField`, `LabelTimeField`, `LabelDurationField`: Inherit from their respective date/time fields, default `verbose_name='Label Value'`.
 - `LabelUUIDField`: Inherits from `UUIDField`. Used for generating unique identifiers, default configured with `editable=False`, `unique=True`, `default=uuid.uuid4`. Typically used for scenarios requiring unique IDs.
-- `LabelChoiceField`: Inherits from `CharField`. Used to define the Label type, pre-set with `choices=[('timer','Timer'),('counter','Stepper'),('read_only','Read Only')]` and corresponding `verbose_name` and `help_text`.
+- `LabelChoiceField`: Inherits from `CharField`. Used to define label types, pre-set with `choices=[('timer','Timer'),('counter','Counter'),('read_only','Read Only')]` and corresponding `verbose_name` and `help_text`.
 - `LabelsContainerField`: Inherits from `CharField`. Used for `BaseLabel.used_in_container`, default `verbose_name='Owning Container'`, and includes help text.
-- `LabelDisplayFormatField`: Inherits from `CharField`. Used to define the display format, includes custom validation logic to ensure the format string contains necessary placeholders and conforms to rules.
+- `LabelDisplayFormatField`: Inherits from `CharField`. Used to define the display format, includes custom validation logic to ensure the format string contains necessary placeholders and complies with rules.
 
 **Usage Recommendation**:
-When defining specific Label models, you can directly use these preset fields. They provide default configurations that adhere to the Label system's conventions, helping maintain consistency in field definitions across the project. For example, when customizing a "Max Drawdown" Label, its `label_value` should be overridden with `LabelFloatField(default=100)` instead of a plain `models.IntegerField`.
+When defining specific label models, you can directly use these preset fields. They provide default configurations that conform to the label system's conventions, helping maintain consistency in field definitions throughout the project. For example, when customizing a "Max Drawdown" label, its `label_value` should be overridden to `LabelFloatField(default=100)` instead of a plain `models.IntegerField`.
 
 ### 2.3 Container Model (`BaseContainer`)
 
 **Location**: `containers/models/base_container.py`
-**Responsibility**: Abstract base class for all Container models. Acts as the logical grouping and physical carrier for Labels.
+**Responsibility**: Abstract base class for all container models. Acts as the logical grouping and physical carrier for Labels.
 
 **Core Fields**:
-*   `container_name` (`CharField`): The name of the Container.
-*   `container_type` (`CharField`): The type of the Container (e.g., display, interactive, hidden).
-*   `used_in_character` (`ContainerCharacterField`): **A string field** used to record the class name of the Character template instance to which this Container instance belongs.
-*   **Note**: Containers associate Label instances via specific `OneToOneField` fields (defined in subclasses).
+*   `container_name` (`CharField`): The name of the container.
+*   `container_type` (`CharField`): The type of the container (e.g., display, interactive, hidden).
+*   `used_in_character` (`ContainerCharacterField`): **A string field** used to record the class name of the Character template to which this container instance belongs.
+*   **Note**: Containers associate with label instances via specific `OneToOneField` fields (defined in subclasses).
 
 **Core Methods**:
-*   `clean()`: Overridden. Performs validation before saving the Container. It checks the `used_in_container` field of all Label instances the Container intends to associate with. If a Label is already occupied by another Container, it raises a `ValidationError`. If validation passes, it sets the `used_in_container` field of these Labels to the current Container's class name, marking them as "used".
-*   `save()`: Used for instance registration, similar to `BaseLabel`.
-*   `delete()`: Overridden. Very important! When a Container is deleted, it performs a cascading delete:
-    1.  **Iterates through all Label instances associated with it via `OneToOneField`** and deletes those Label instances.
+*   `clean()`: Overridden. Performs validation before saving the container. It checks the `used_in_container` field of all label instances the container wants to associate with. If a label is already occupied by another container, it raises a `ValidationError`. Upon successful validation, it sets the `used_in_container` field of these labels to the current container's class name, marking them as "used".
+*   `save()`: Similar to `BaseLabel`, used for instance registration.
+*   `delete()`: Overridden. Very important! When a container is deleted, it performs a cascade delete:
+    1.  **Iterates through all label instances associated with it via `OneToOneField`** and deletes these label instances.
     2.  Deregisters itself from the `InstanceHashTable`.
     3.  Finally deletes itself.
-*   `__get_all_label_from_container()`: A private method used to get a list of all Label instances associated with the current Container instance. Used by both the `clean()` and `delete()` methods.
+*   `__get_all_label_from_container()`: A private method used to get a list of all label instances associated with the current container instance. Both the `clean()` and `delete()` methods rely on it.
 
 **Container Association Field**:
-`ContainerLabelField` in `container_label_field.py` is a convenience class that presets a `OneToOneField` with `on_delete=models.SET_NULL`, `null=True`, `related_name='+'`, used in Container subclasses to associate Label models.
+`ContainerLabelField` in `container_label_field.py` is a convenience class that presets a `OneToOneField` with `on_delete=models.SET_NULL`, `null=True`, `related_name='+'`, used in container subclasses to associate label models.
 
-#### 2.3.1 Container Model Deletion Cascade Diagram
+#### 2.3.1 Container Model Delete Cascade Diagram
 ```mermaid
 flowchart TD
-    A[Delete Container Instance] --> B[Iterate through all associated Labels<br>via OneToOneField]
+    A[Delete Container Instance] --> B[Iterate all OneToOneField associated Labels]
     B --> C[Delete Label Instance 1]
     B --> D[Delete Label Instance 2]
     B --> E[Delete Label Instance N]
@@ -2384,18 +2494,48 @@ flowchart TD
 *   `user` (`ForeignKey` to `User`): The user who created and owns this Character instance.
 
 **Core Methods**:
-*   `clean()`: Overridden. Logic similar to `BaseContainer.clean()`. Validates the `used_in_character` field of all associated Container instances to ensure they are not occupied by other Characters, and marks them as used upon success.
+*   `clean()`: Overridden. Logic similar to `BaseContainer.clean()`. Validates the `used_in_character` field of all associated container instances, ensuring they are not occupied by other Characters, and marks them as used upon success.
 *   `save()`: Used for instance registration.
-*   `delete()`: Overridden. Deregisters itself from the `InstanceHashTable`. **Note**: It does not cascade delete Containers and Labels by default. This functionality needs to be implemented in subclasses or deletion view logic if required.
-*   `__get_all_containers_from_character()`: Private method used to get a list of all Container instances associated with the current Character instance.
+*   `delete()`: Overridden. Deregisters itself from the `InstanceHashTable`. **Note**: It does not cascade delete containers and labels by default. If this functionality is needed, it must be implemented in subclasses or delete view logic.
+*   `__get_all_containers_from_character()`: Private method used to get a list of all container instances associated with the current Character instance.
 
 **Character Association Field**:
-`CharacterContainerField` is a preset `OneToOneField` used in Character subclasses to associate Container models.
+`CharacterContainerField` is a preset `OneToOneField` used in Character subclasses to associate container models.
 
 ---
-## 3. Model Registration System
+## 3. Core Module Explained: Global Model Instance Hash Table
 
-### 3.1 Model Registration Mechanism (`ModelRegister`)
+**Location**: `/api/models/instance_hash_table/instance_hash_table.py`
+**Responsibility**: `InstanceHashTable` is a generic hash table model that uses Django's ContentTypes framework to provide globally unique UUID identifiers for any model instance in the system. This module implements a bidirectional mapping between model instances and UUIDs, providing the system with a unified instance identification and retrieval mechanism.
+
+### 3.1 Core Fields
+- `hash_value: models.UUIDField`: Stores the unique UUID identifier for the model instance.
+- `content_type: models.ForeignKey(ContentType)`: Links to Django's ContentType model, recording the model type of the target instance.
+- `object_id: models.PositiveIntegerField`: The primary key value of the associated object (the target instance's ID).
+- `content_object: GenericForeignKey('content_type', 'object_id')`: A generic foreign key field providing direct access to the actual model instance.
+
+### 3.2 Core Methods
+
+`get_uuid_for_instance(instance) -> str | None`: Static method, retrieves the UUID identifier for the specified model instance from the hash table.
+
+**Parameters**:
+- `instance` - Any Django model instance.
+**Returns**:
+- `str` - The instance's UUID string (if it exists).
+- `None` - If no record for the instance exists in the hash table.
+
+`get_instance_by_uuid(uuid_str: str) -> object | None`: Static method, retrieves the corresponding model instance via a UUID string.
+
+**Parameters**:
+- `uuid_str: str` - UUID string.
+**Returns**:
+- `object` - The found model instance.
+- `None` - If the UUID is invalid or no corresponding instance is found.
+
+---
+## 4. Model Registration System
+
+### 4.1 Model Registration Mechanism (`ModelRegister`)
 
 **Location**: `api/models/register.py`
 **Responsibility**: Automatically discovers and registers all custom Label, Container, and Character template models, ensuring they are correctly recognized and managed by the system.
@@ -2408,9 +2548,9 @@ flowchart TD
 **Core Methods**:
 *   `load_all_characters()`:
     *   **Function**: Scans all Python files in the `characters/models/characters` directory and imports them.
-    *   **Mechanism**: Importing the Character model files chain-triggers the decorator registration of the Container and Label models imported within them.
-    *   **Note**: Only Containers and Labels explicitly imported within the Character models will be registered and migrated.
-*   `check_registered()`: Checks if there is at least one registered Character, Container, and Label model; if not, it reports an error and exits.
+    *   **Mechanism**: Importing Character model files chain-triggers the decorator registration of the Container and Label models imported within them.
+    *   **Note**: Only Containers and Labels explicitly imported within Character models will be registered and migrated.
+*   `check_registered()`: Checks if at least one Character, Container, and Label model is registered; if not, it errors and exits.
 *   `label_register()`, `container_register()`, `character_register()`: Decorator functions used to register model classes into their respective lists.
 
 **Usage Example**:
@@ -2422,7 +2562,7 @@ class MaxDrawdownLabel(BaseLabel):
     label_value = models.IntegerField(default=100, verbose_name='Max Drawdown')
     label_name = "Max Drawdown"
 
-@ModelRegister.container_register  
+@ModelRegister.container_register
 class TradeInfoContainer(BaseContainer):
     trade_info_container = ContainerLabelField(to=MaxDrawdownLabel)
 
@@ -2439,7 +2579,7 @@ sequenceDiagram
     participant CharacterFiles
     participant Decorators
     
-    Note over Startup: Project Startup / Django Loads
+    Note over Startup: Project Startup / Django Load
     Startup->>ModelRegister: load_all_characters()
     
     loop Traverse characters/models directory
@@ -2458,7 +2598,7 @@ sequenceDiagram
     ModelRegister-->>Startup: Validation Passed / Error Exit
 ```
 
-### 3.2 Model Registration System Check
+### 4.2 Model Registration System Check
 
 Ensure `admin.py` is correctly imported to register all models with the admin backend.
 
@@ -2483,7 +2623,7 @@ class ApiConfig(AppConfig):
 ```mermaid
 flowchart TD
     A[Access /admin] --> B[Django Admin Login]
-    B --> C{User Permission Check}
+    B --> C{User Permission Verification}
     C -- Admin User --> D[Display Admin Interface]
     C -- Non-Admin User --> E[Permission Error]
     
@@ -2494,7 +2634,7 @@ flowchart TD
     F --> J[Token Models]
     
     subgraph "Label Models"
-        K[Accessed via Search/Filter]
+        K[Access via Search/Filter]
     end
     
     G --> L[List View]
@@ -2509,18 +2649,18 @@ flowchart TD
 
 ## 5. Event System and Trigger Integration
 
-Detailed implementation: 8. Core Module Details: Event Engine (EventBus)
+Detailed implementation: [[#7. Core Module Explained: Event Engine (EventBus)]]
 ### 5.1 How It Works
-1.  **Define Triggers**: In a custom Label model class, decorate the `trigger_0` and `trigger_1` methods with the `@LabelTriggerManager.register_trigger` decorator, specifying their listener mode, the event(s) to listen for, and the event to publish after triggering.
+1.  **Define Triggers**: In custom Label model classes, decorate the `trigger_0` and `trigger_1` methods with the `@LabelTriggerManager.register_trigger` decorator, specifying their listening mode, listened events, and events to publish after triggering.
 2.  **Register Triggers**: When the project starts, `LabelTriggerManager` scans all Label classes and records their trigger function information into the global dictionary `trigger_hash_tabel`.
-3.  **Install Instances**: When a user starts the event engine (via the `StartEventBusEngine` API), the system traverses all of that user's Characters, Containers, and Labels, and installs each Label **instance** under the `"instance"` field for its corresponding class name in `trigger_hash_tabel`.
-4.  **Install to Event Bus**: Immediately after, `LabelTriggerManager.install_to_eventbus` is called. It iterates through `trigger_hash_tabel` and, based on the listening information registered in step 1, registers each trigger (its function wrapped into a Lambda capable of operating on the specific instance) into the user's `EventBus` instance.
-5.  **Event Flow**: Thereafter, when any code publishes an event via `EventBus.publish("some_event")`, the relevant listeners (i.e., the Label's triggers) are triggered, thereby modifying the Label's data.
+3.  **Install Instances**: When a user starts the event engine (via the `StartEventBusEngine` API), the system traverses all of the user's Characters, Containers, and Labels, and installs each Label **instance** under the `"instance"` field for its corresponding class name in `trigger_hash_tabel`.
+4.  **Install Event Bus**: Immediately after, `LabelTriggerManager.install_to_eventbus` is called. It traverses `trigger_hash_tabel` and, based on the listening information registered in step 1, registers each trigger (its function wrapped into a Lambda capable of operating on a specific instance) into the user's `EventBus` instance.
+5.  **Event Flow**: Thereafter, when any code publishes an event via `EventBus.publish("some_event")`, the relevant listeners (i.e., the Label's triggers) are triggered, thereby changing the Label's data.
 
 #### 5.1.1 Event Engine Workflow Diagram
 ```mermaid
 flowchart TD
-    A[Publish Event<br>EventBus.publish] --> B[Event Enters Queue]
+    A[Event Published<br>EventBus.publish] --> B[Event Enters Queue]
     B --> C{Process Event}
     C --> D[Immediate Trigger]
     C --> E[Delayed Trigger<br>Add to Delay Queue]
@@ -2528,7 +2668,7 @@ flowchart TD
     C --> G[Pattern Trigger<br>Match Pattern]
     
     D --> H[Execute Callback Function]
-    E --> I[Wait for Specified Event Count]
+    E --> I[Wait Specified Event Count]
     I --> H
     F --> J{All Conditions Met?}
     J -- Yes --> H
@@ -2538,8 +2678,6 @@ flowchart TD
     L -- Yes --> H
     L -- No --> M[Reset State Machine]
 ```
-
-
 
 ### 5.2 How to Define a Label with Triggers
 
@@ -2551,7 +2689,7 @@ from labels.models.label_trigger_manager import LabelTriggerManager
 from api.event.event_engine import EventBus
 
 class MaxDrawdownLabel(BaseLabel):
-    # Override label_value to be a FloatField, truly embodying "One Label, One Model"
+    # Override label_value as a FloatField, truly embodying "One Label, One Model"
     label_value = models.FloatField(default=0.0, verbose_name='Max Drawdown')
     label_name = "Max Drawdown" # Can also be fixed
 
@@ -2584,7 +2722,7 @@ class MaxDrawdownLabel(BaseLabel):
 **Key Points**:
 *   Use the `@LabelTriggerManager.register_trigger` decorator.
 *   `listener_type`: Defines the listening mode (Immediate, Delayed, Joint, Pattern).
-*   `listen_event`: Specifies the event name(s) to listen for.
+*   `listen_event`: Specifies the event name to listen for.
 *   `publish`: (Optional) Specifies the name of the new event to publish after this trigger executes successfully, forming an event chain.
 
 ### 5.2.1 Trigger Registration and Installation Sequence Diagram
@@ -2632,7 +2770,7 @@ sequenceDiagram
     LabelA->>LabelA: save()
     LabelA->>EventBus: publish("portfolio_updated")
     
-    EventBus->>LabelB: Trigger trigger listening to "portfolio_updated"
+    EventBus->>LabelB: Trigger listener for portfolio_updated
     LabelB->>LabelB: Adjust risk level
     LabelB->>LabelB: save()
     
@@ -2640,11 +2778,11 @@ sequenceDiagram
     API-->>User: Operation successful response
 ```
 
-## 6. Usage Process (How-To)
+## 6. Usage and Plugin Development
 
 ### 6.1 System Initialization and Startup
 
-Ensure the model registration system works correctly upon project startup:
+Ensure the model registration system works correctly when the project starts:
 
 1.  **Model Registration**: Call `ModelRegister.load_all_characters()` in Django's `apps.py` or project initialization code.
 2.  **Registration Check**: Call `ModelRegister.check_registered()` to ensure at least one Character, Container, and Label is registered.
@@ -2667,7 +2805,7 @@ class ApiConfig(AppConfig):
         ModelRegister.check_registered()
 ```
 
-### 6.2 Using the Admin Backend
+### 6.2 Admin Backend Usage
 
 1.  **Access Admin Backend**: Access the Django admin interface via the `/admin` URL.
 2.  **Manage Models**:
@@ -2675,9 +2813,29 @@ class ApiConfig(AppConfig):
     *   Label models will not appear in the navigation bar but can be accessed directly via URL or managed through their associated Containers.
 3.  **Data Operations**:
     *   You can create, edit, and delete Character, Container, and Label instances.
-    *   Delete operations automatically handle cascading relationships (e.g., deleting a Container deletes its associated Labels).
+    *   Delete operations automatically handle cascade relationships (e.g., deleting a Container deletes its associated Labels).
 
-### 6.3 Creating a New Character Type
+### 6.3 Developing and Importing Plugins
+
+Developing a new strategy monitoring project essentially involves creating new models within the corresponding app of this project, following the inheritance hierarchy of `BaseCharacter`, `BaseContainer`, `BaseLabel` to define a new set of models.
+
+**Steps**:
+1.  **Plan**: Determine what data (Labels) the new Character needs and how to group them (Containers).
+2.  **Create Models**:
+    *   Create `your_plugin_labels.py` under `labels/models/`, define all Label models.
+    *   Create `your_plugin_containers.py` under `containers/models/`, define Container models and use `ContainerLabelField` to associate with the Labels from the previous step.
+    *   Create `your_plugin_character.py` under `characters/models/`, define the Character template model and use `CharacterContainerField` to associate with the Containers from the previous step.
+3.  **Implement Logic**:
+    *   Override the `trigger_0` and `trigger_1` methods in the Label models, and use the `LabelTriggerManager.register_trigger` decorator to define their event behavior.
+4.  **Register & Migrate**: Ensure the new model files are correctly imported, then run `makemigrations` and `migrate`.
+5.  **Provide API** (Optional): If needed, create new API views to handle specific operations for this new Character type (e.g., execute strategy, change parameters).
+
+**Notes**:
+*   Model definition and migration are the core of pluginization.
+*   Fully understand the maintenance mechanism of the `used_in_container` and `used_in_character` fields to avoid breaking it in custom `save` or `delete` logic.
+*   Configuration of the trigger decorator parameters is crucial; clearly understand the working modes of the event bus.
+
+**Hands-on**:
 Suppose we want to create a Character named `ArbitrageStrategy`.
 
 **1. Define Label Models**
@@ -2687,8 +2845,8 @@ from django.db import models
 from labels.models.base_label import BaseLabel
 
 class SymbolPairLabel(BaseLabel):
-    label_value = models.CharField(max_length=50, default="BTC/USD", verbose_name='Symbol Pair')
-    label_name = "Symbol Pair"
+    label_value = models.CharField(max_length=50, default="BTC/USD", verbose_name='Trading Pair')
+    label_name = "Trading Pair"
 
 class CapitalLabel(BaseLabel):
     label_value = models.FloatField(default=10000.0, verbose_name='Initial Capital')
@@ -2700,7 +2858,7 @@ class SharpeRatioLabel(BaseLabel):
 ```
 
 **2. Define Container Models**
-Create `containers/models/quant_containers.py`:
+Create `containers/models/quant_label_containers.py`:
 ```python
 from django.db import models
 from containers.models.base_container import BaseContainer
@@ -2717,14 +2875,14 @@ class PerformanceContainer(BaseContainer):
 ```
 
 **3. Define Character Model**
-Create `characters/models/quant_character.py`:
+Create `characters/models/some_strategy.py`:
 ```python
 from django.db import models
-from characters.models.base_character import BaseCharacter
-from characters.models.character_container_field import CharacterContainerField
-from containers.models.quant_containers import BasicConfigContainer, PerformanceContainer
+from strategies.models.base_strategy import BaseStrategy # Assuming BaseCharacter might be named BaseStrategy here
+from characters.models.character_container_field import CharacterContainerField # Assuming this field exists
+from containers.models.quant_label_containers import BasicConfigContainer, PerformanceContainer
 
-class ArbitrageStrategy(BaseCharacter):
+class ArbitrageStrategy(BaseStrategy): # Assuming BaseStrategy is the base class
     # Associate Container models
     basic_config = CharacterContainerField(to=BasicConfigContainer)
     performance = CharacterContainerField(to=PerformanceContainer)
@@ -2738,105 +2896,9 @@ python manage.py migrate
 ```
 
 **5. (Optional) Add Triggers to Labels**
-Edit `quant_labels.py`, as described earlier, to add `@LabelTriggerManager.register_trigger` decorator logic for `SharpeRatioLabel`, etc.
+Edit `quant_labels.py`, as described earlier, add logic with the `@LabelTriggerManager.register_trigger` decorator for `CapitalLabel`, etc.
 
-#### 6.3.1 New Character Type Creation Flowchart
-```mermaid
-flowchart TD
-    A[Create New Character Type] --> B[Define Label Models]
-    A --> C[Define Container Models]
-    A --> D[Define Character Template Model]
-    
-    B --> E[Override label_value field]
-    B --> F[Add trigger decorators]
-    
-    C --> G[Use ContainerLabelField to associate Labels]
-    
-    D --> H[Use CharacterContainerField to associate Containers]
-    
-    E --> I[Database Migrations]
-    F --> I
-    G --> I
-    H --> I
-    
-    I --> J[Create API Views]
-    J --> K[Test]
-```
-
-### 6.4 Starting the Event Engine
-The frontend should call `/api/eventbus/start/` (`StartEventBusEngine` view) after user login or when interactive functionality needs to be started. This view will:
-1.  Find or create the `EventBus` instance for the corresponding user.
-2.  Traverse all of the user's Characters, Containers, and Labels.
-3.  Call `LabelTriggerManager.install_instance` to configure triggers for each Label instance.
-4.  Call `LabelTriggerManager.install_to_eventbus` to register all configured triggers onto the event bus.
-
-Thereafter, the event-driven system is operational.
-
-### 6.5 System Startup and Event Engine Initialization Diagram
-```mermaid
-sequenceDiagram
-    participant Frontend as Frontend (React)
-    participant Backend as Backend (Django)
-    participant EventBusPool as EventBusObjectPool
-    participant TriggerManager as LabelTriggerManager
-    participant DB as Database
-    
-    Frontend->>Backend: User Login
-    Backend-->>Frontend: Authentication Success
-    
-    Frontend->>Backend: Call StartEventBusEngine API
-    
-    Backend->>EventBusPool: get_for_user(user_id)
-    EventBusPool-->>Backend: Return EventBus instance
-    
-    Backend->>DB: Query user's all Characters
-    DB-->>Backend: Return Character list
-    
-    loop For all Characters
-        Backend->>DB: Query Character's all Containers
-        DB-->>Backend: Return Container list
-        
-        loop For all Containers
-            Backend->>DB: Query Container's all Labels
-            DB-->>Backend: Return Label list
-            
-            loop For all Labels
-                Backend->>TriggerManager: install_instance(Label Instance)
-                TriggerManager-->>Backend: Confirmation
-            end
-        end
-    end
-    
-    Backend->>TriggerManager: install_to_eventbus(EventBus instance)
-    TriggerManager-->>Backend: Installation Complete
-    
-    Backend-->>Frontend: Event Engine Started Successfully
-```
----
-
-## 7. Plugin Development Guide
-
-Developing a new strategy monitoring project essentially involves creating a new Django App (or creating new modules within the corresponding apps of this project) and defining a new set of models following the inheritance hierarchy of `BaseCharacter`, `BaseContainer`, and `BaseLabel`.
-
-**Steps**:
-1.  **Planning**: Determine what data (Labels) the new Character needs and how to group them (Containers).
-2.  **Create Models**:
-    *   Create `your_plugin_labels.py` under `labels/models/`, define all Label models.
-    *   Create `your_plugin_containers.py` under `containers/models/`, define Container models and use `ContainerLabelField` to associate the Labels from the previous step.
-    *   Create `your_plugin_character.py` under `characters/models/`, define the Character template model and use `CharacterContainerField` to associate the Containers from the previous step.
-3.  **Implement Logic**:
-    *   Override the `trigger_0` and `trigger_1` methods in the Label models and use the `LabelTriggerManager.register_trigger` decorator to define their event behavior.
-4.  **Register & Migrate**: Ensure the new model files are correctly imported, then run `makemigrations` and `migrate`.
-5.  **Provide API** (Optional): If needed, create new API views to handle specific operations for this new Character type (e.g., run backtest, adjust parameters).
-
-**Considerations**:
-*   Model definition and migration are the core of pluginization.
-*   Fully understand the maintenance mechanism of the `used_in_container` and `used_in_character` fields to avoid breaking it in custom `save` or `delete` logic.
-*   Configuration of the trigger decorator parameters is crucial; a clear understanding of the event bus's working modes is required.
-
-Good, based on the detailed code and description you provided, I will write the development documentation for the two core modules: the Event Engine (`EventBus`) and the Label Trigger Manager (`LabelTriggerManager`). These documents will be integrated into the initial documentation structure you provided.
-
-### 7.1 Plugin Development Component Relationship Diagram
+#### 6.3.1 Plugin Model Structure Diagram
 ```mermaid
 graph TB
     subgraph "New Character Plugin"
@@ -2867,45 +2929,117 @@ graph TB
     NewLabel2 --> BaseLabel
     NewLabel3 --> BaseLabel
 ```
+
+#### 6.3.2 Create New Character Type Flowchart
+```mermaid
+flowchart TD
+    A[Create New Character Type] --> B[Define Label Models]
+    A --> C[Define Container Models]
+    A --> D[Define Character Template Model]
+    
+    B --> E[Override label_value field]
+    B --> F[Add Trigger Decorators]
+    
+    C --> G[Use ContainerLabelField to associate Labels]
+    
+    D --> H[Use CharacterContainerField to associate Containers]
+    
+    E --> I[Database Migration]
+    F --> I
+    G --> I
+    H --> I
+    
+    I --> J[Create API Views]
+    J --> K[Test]
+```
+
+### 6.4 Starting the Event Engine
+The frontend should call `/api/eventbus/start/` (`StartEventBusEngine` view) after user login or when interactive functionality needs to be started. This view will:
+1.  Find or create the `EventBus` instance for the corresponding user.
+2.  Traverse all of the user's Characters, Containers, and Labels.
+3.  Call `LabelTriggerManager.install_instance` to configure triggers for each Label instance.
+4.  Call `LabelTriggerManager.install_to_eventbus` to register all configured triggers onto the event bus.
+
+Thereafter, the event-driven system is operational.
+
+### 6.5 System Startup and Event Engine Initialization Diagram
+```mermaid
+sequenceDiagram
+    participant Frontend as Frontend (React)
+    participant Backend as Backend (Django)
+    participant EventBusPool as EventBusObjectPool
+    participant TriggerManager as LabelTriggerManager
+    participant DB as Database
+    
+    Frontend->>Backend: User Login
+    Backend-->>Frontend: Authentication Successful
+    
+    Frontend->>Backend: Call StartEventBusEngine API
+    
+    Backend->>EventBusPool: get_for_user(user_id)
+    EventBusPool-->>Backend: Return EventBus Instance
+    
+    Backend->>DB: Query all user's Characters
+    DB-->>Backend: Return Character list
+    
+    loop For all Characters
+        Backend->>DB: Query Character's all Containers
+        DB-->>Backend: Return Container list
+        
+        loop For all Containers
+            Backend->>DB: Query Container's all Labels
+            DB-->>Backend: Return Label list
+            
+            loop For all Labels
+                Backend->>TriggerManager: install_instance(Label Instance)
+                TriggerManager-->>Backend: Confirmation
+            end
+        end
+    end
+    
+    Backend->>TriggerManager: install_to_eventbus(EventBus Instance)
+    TriggerManager-->>Backend: Installation Complete
+    
+    Backend-->>Frontend: Event Engine Started Successfully
+```
 ---
 
-
-## 8. Core Module Details: Event Engine (EventBus)
+## 7. Core Module Explained: Event Engine (EventBus)
 
 **Location**: `api/event/event_engine.py`
-**Responsibility**: Provides a powerful, queue-based core for an event-driven architecture. It is responsible for publishing, storing, and dispatching events, and triggering corresponding callback functions based on predefined listener modes (Immediate, Delayed, Joint, Pattern). Each user has an independent event bus instance managed by `EventBusObjectPool`, ensuring event isolation between users.
+**Responsibility**: Provides a powerful, queue-based event-driven architecture core. It is responsible for the publishing, storage, scheduling of events, and triggers corresponding callback functions based on predefined listening modes (Immediate, Delayed, Joint, Pattern). Each user has an independent event bus instance, managed by `EventBusObjectPool`, ensuring event isolation between users.
 
-### 8.1 Core Classes and Data Structures
+### 7.1 Core Classes and Data Structures
 
 **`EventBus` Class**:
 
-*   **`is_install` (Boolean)**: Flag indicating whether this event bus instance has been installed and configured by the `LabelTriggerManager.install_to_eventbus` method, preventing re-installation.
+*   **`is_install` (Boolean)**: Flag indicating whether this event bus instance has been installed and configured by the `LabelTriggerManager.install_to_eventbus` method, preventing duplicate installation.
 *   **`event_count` (Integer)**: Global event counter. Starts at 0 and increments each time a new event is processed. Used to implement delayed triggering.
 *   **`event_bus` (Queue)**: A First-In-First-Out (FIFO) event queue for storing all pending event strings. `maxsize=1000` prevents memory overflow.
-*   **`immediate_listeners` (DefaultDict[str, List[Callable]])**: Immediate listener dictionary. Keys are event names (`source`), values are lists of callback functions. When the corresponding event is published, all callbacks in the list are **executed immediately and synchronously**.
+*   **`immediate_listeners` (DefaultDict[str, List[Callable]])**: Immediate listener dictionary. Key is the event name (`source`), value is a list of callback functions. When the corresponding event is published, all callbacks in the list are **executed immediately and synchronously**.
 *   **`delayed_tasks` (List[Tuple[int, Callable]])**: Delayed task **min-heap**. Each element is a tuple `(trigger_at, callback)`, where `trigger_at` is an absolute event count (`event_count + delay`). The heap always ensures the task with the smallest `trigger_at` is at the top.
 *   **`joint_conditions` (List[JointCondition])**: Joint condition listener list.
 *   **`pattern_matchers` (List[PatternMatcher])**: Pattern matching listener list.
 
 **`JointCondition` Class**:
-Used to implement **Joint Triggering** (all specified events have occurred, order无关).
+Used to implement **Joint triggering** (all specified events have occurred, order无关).
 *   **`required` (Set[str])**: Set of all events that need to be listened for.
 *   **`occurred` (Set[str])**: Set of events that have already occurred.
 *   **`callback` (Callable)**: Callback function to execute when `occurred == required`.
-*   **`on_event(event)`**: Processes a new event. If the event is in `required` and hasn't been recorded, add it to `occurred`. If all events have occurred, trigger the `callback` and reset the state.
+*   **`on_event(event)`**: Handles a new event. If the event is in `required` and hasn't been recorded, add it to `occurred`. If all events have occurred, trigger `callback` and reset the state.
 *   **`reset()`**: Resets the `occurred` set.
 
 **`PatternMatcher` Class**:
-Used to implement **Pattern Triggering** (event sequence matches a specific pattern, supports `*` wildcard).
-*   **`pattern` (List[str])**: List of event patterns to match, e.g., `["A", "*", "B"]`.
+Used to implement **Pattern triggering** (event sequence matches a specific pattern, supports `*` wildcard).
+*   **`pattern` (List[str])**: The event pattern list to match, e.g., `["A", "*", "B"]`.
 *   **`state` (Integer)**: Current matching position in the pattern sequence (state of the state machine).
 *   **`callback` (Callable)**: Callback function to execute when the pattern is fully matched.
-*   **`on_event(event)`**: Processes new events using state machine logic, attempting to advance the matching state. If fully matched (`state == len(pattern)`), triggers the `callback` and resets the state. If matching fails, it tries to restart matching from the current event.
+*   **`on_event(event)`**: Uses state machine logic to process new events, attempting to advance the matching state. If fully matched (`state == len(pattern)`), trigger `callback` and reset the state. If matching fails, it tries to restart matching from the current event.
 *   **`reset()`**: Resets the state machine (`state = 0`).
 
 **Event Engine (EventBus) Internal Data Structure and Event Flow**
 
-**Description**: This diagram shows the core data structures of the EventBus and the internal flow of processing an event.
+**Description**: This diagram shows the core data structures of EventBus and the internal flow of processing an event.
 
 ```mermaid
 flowchart TD
@@ -2930,26 +3064,26 @@ flowchart TD
     M --> N[Event Processing Done]
 ```
 
-### 8.2 Listener Modes (Listener Types)
+### 7.2 Listening Modes (Listener Types)
 
 1.  **`IMMEDIATE` (Immediate Trigger)**:
     *   **Behavior**: Listens for a specific event `source`. When the `source` event is processed, all associated callback functions are called immediately.
-    *   **Application**: Most common, used for immediate reactions to events, e.g., taking damage, gaining experience.
+    *   **Application**: Most common, used to react instantly to events.
 
 2.  **`DELAY` (Delayed Trigger)**:
-    *   **Behavior**: Listens for a specific event `source`. When the `source` event is processed, the callback is not executed immediately. Instead, a future trigger point `trigger_at = current_event_count + delay` is calculated, and the task is placed into the min-heap. The system checks the top of the heap after processing each event; if `trigger_at <= current_event_count`, the callback is executed.
-    *   **Implementation**: Borrows the immediate trigger. When the `source` event occurs, a wrapper function (`delayed_callback_wrapper`) is called immediately; its only purpose is to push the real callback task into the delay heap.
-    *   **Application**: Implements effects that need to take effect after a period of time (measured in number of events), e.g., ongoing damage after poisoning, buff/debuff duration.
+    *   **Behavior**: Listens for a specific event `source`. When the `source` event is processed, it does not execute the callback immediately. Instead, it calculates a future trigger point `trigger_at = current_event_count + delay` and puts the task into the min-heap. The system checks the top of the heap after processing each event. If `trigger_at <= current_event_count`, it executes the callback.
+    *   **Implementation**: Borrows the immediate trigger. When the `source` event occurs, a wrapper function (`delayed_callback_wrapper`) is called immediately, whose sole purpose is to push the real callback task into the delay heap.
+    *   **Application**: Implements effects that need to wait for a period of time (measured in number of events) before taking effect, such as damage over time from poison, or the duration of buffs/debuffs.
 
 3.  **`JOINT` (Joint Trigger)**:
-    *   **Behavior**: Listens for a set of events `sources`. Requires that **all** events in the set have occurred **at least once** (order无关). The callback is triggered when the last missing event occurs. The condition resets after triggering and can trigger again.
-    *   **Application**: Completing a task requiring multiple steps, e.g., synthesizing after collecting multiple items, activating a skill by pressing multiple keys simultaneously.
+    *   **Behavior**: Listens for a set of events `sources`. Requires that **all** events in the set have occurred **at least once** (order无关). The callback is triggered when the last missing event occurs. The condition resets after triggering and can be triggered again.
+    *   **Application**: Completing a task that requires multiple steps, such as collecting multiple items for synthesis, or pressing multiple keys simultaneously to activate a skill.
 
 4.  **`PATTERN` (Pattern Trigger)**:
-    *   **Behavior**: Listens for an event sequence `pattern`. Requires events to match the given pattern **in order**; `*` can match any single event. The callback is triggered upon successful matching, and then the state machine resets.
-    *   **Application**: Implementing combo systems, unlocking specific achievements (requiring operations in sequence), parsing command line instructions.
+    *   **Behavior**: Listens for an event sequence `pattern`. Requires events to match the given pattern **in order**, where `*` can match any single event. The callback is triggered upon successful matching, and then the state machine resets.
+    *   **Application**: Implementing combo systems, unlocking specific achievements (requiring operations in a specific order), parsing command line instructions.
 
-### 8.3 Core Method Flow
+### 7.3 Core Method Flow
 
 **`publish(event: str)`**:
 1.  Puts the event string `event` into the `event_bus` queue.
@@ -2960,14 +3094,14 @@ flowchart TD
 2.  Checks if the queue is full; if full, returns `False` (error).
 3.  `event_count++`.
 4.  `get()` an event from the head of the queue.
-5.  **Immediate Trigger**: Looks up the list of callbacks corresponding to this event in `immediate_listeners` and executes all callbacks in sequence.
-6.  **Delayed Trigger**: Checks the top of the `delayed_tasks` heap, and in a loop, pops and executes all tasks where `trigger_at <= event_count`.
+5.  **Immediate Trigger**: Looks up the list of callbacks for this event in `immediate_listeners` and executes all callbacks sequentially.
+6.  **Delayed Trigger**: Checks the top of the `delayed_tasks` heap,循环 pops and executes all tasks where `trigger_at <= event_count`.
 7.  **Joint Trigger**: Iterates through `joint_conditions`, calling `condition.on_event(current_event)` for each condition.
 8.  **Pattern Trigger**: Iterates through `pattern_matchers`, calling `matcher.on_event(current_event)` for each matcher.
 9.  Returns `False` (indicating more events are pending).
 
 **`process(maxStep=10000)`**:
-Loops calling `process_one_step()` up to `maxStep` times, until it returns `True` (queue empty) or the loop limit is reached (preventing infinite loops).
+循环 Calls `process_one_step()` up to `maxStep` times, until it returns `True` (queue empty) or the loop limit is reached (preventing infinite loops).
 
 **Listener Registration Methods (`add_*_listener`)**:
 These methods are used to programmatically register listeners, typically called by `LabelTriggerManager` during the installation phase.
@@ -2977,31 +3111,106 @@ These methods are used to programmatically register listeners, typically called 
 *   `add_pattern_listener(pattern, callback)`
 
 **Decorator Methods**:
-Provide a more declarative way to register listeners, usable in other parts of the code (not limited to Label triggers).
+Provide a more declarative way to register listeners, can be used in other parts of the code (not limited to label triggers).
 *   `@listen_immediately(source)`
 *   `@listen_delayed(source, delay)`
 *   `@listen_jointly(sources)`
 *   `@listen_pattern_matcher(pattern)`
-*   `@publish_event(event)`: **Special decorator**. It decorates a function and returns a wrapper function. After the decorated function executes, the wrapper function automatically publishes the specified event `event`. This is used to implement **event chains** (a trigger's execution leads to the publication of a new event).
+*   `@publish_event(event)`: **Special decorator**. It decorates a function and returns a wrapper function. After the decorated function executes, the wrapper function automatically publishes the specified event `event`. This is used to implement **event chains** (the execution of one trigger leads to the publication of a new event).
 
-### 8.4 Data Flow
-1.  **Event Generation**: Called by API views (e.g., `LabelTriggerView`) or other backend logic via `event_bus_instance.publish("some_event")`.
+### 7.4 Data Flow
+1.  **Event Generation**: Called by API views (e.g., `LabelTriggerView`) or other background logic calling `event_bus_instance.publish("some_event")`.
 2.  **Event Enqueuing**: The event is added to the `event_bus` queue.
-3.  **Event Processing**: `process_one_step()` is called in a loop (typically within the context of an API request or by a background task).
-4.  **Trigger Callback**: Based on the event type and listener configuration, the corresponding callback function is looked up and executed. These callback functions are wrapped by `LabelTriggerManager` and ultimately call the `trigger_0` or `trigger_1` method of a specific Label instance.
-5.  **State Change**: The Label instance's data is modified within the trigger function (`self.label_value -= 10`) and saved (`self.save()`), thereby changing the Character's state.
-6.  **Event Chain**: If the trigger is decorated with `@publish_event`, its execution publishes a new event, returning to step 1 and forming a chain reaction.
+3.  **Event Processing**: `process_one_step()` is called循环ly (typically within the context of an API request, or by a background task).
+4.  **Trigger Callback**: Based on the event type and listener configuration, the corresponding callback function is looked up and executed. These callback functions are wrapped by `LabelTriggerManager` and ultimately call the `trigger_0` or `trigger_1` method of a specific label instance.
+5.  **State Change**: The label instance's data is modified within the trigger function (`self.label_value -= 10`) and saved (`self.save()`), thereby changing the Character's state.
+6.  **Event Chain**: If the trigger is decorated with `@publish_event`, it publishes a new event after execution, returning to step 1, forming a chain reaction.
 
 ---
 
-## 9. Core Module Details: Label Trigger Manager (LabelTriggerManager)
+## 8. Core Module Explained: Event Engine Object Pool
+
+### 8.1 Core Fields and Methods
+
+Location: `/api/event/eventbus_object_pool.py`
+Responsibility: `EventBusObjectPool` is a thread-safe event bus object pool used to provide independent event bus instances for each user. This design ensures complete isolation of event flows between different users, preventing event interference, while improving resource utilization efficiency through the object pool pattern.
+
+**Core Fields**:
+- `eventBusObjectPool: Dict[str, 'EventBus']`: Stores the mapping from user ID strings to EventBus instances, format `{"user_id_string": EventBus_instance, ...}`.
+- `pool_lock: threading.RLock`: Reentrant lock used to ensure safe access to the object pool in a multi-threaded environment.
+
+**Core Methods**:
+`get_for_user(user_id: int) -> EventBus`: Gets the event bus instance for the specified user. If the event bus for this user does not exist, creates a new instance and adds it to the object pool.
+1.  Convert the user ID to string format.
+2.  Acquire the thread lock to ensure thread safety.
+3.  Check if the user's event bus instance already exists in the object pool.
+4.  If it doesn't exist, create a new event bus instance and add it to the object pool.
+5.  Return the user's event bus instance.
+
+`exist(user_id: int) -> bool`: Checks if the event bus instance for the specified user already exists in the object pool.
+1.  Convert the user ID to string format.
+2.  Log debug information, outputting the current state of the object pool.
+3.  Check if the object pool contains the event bus instance for this user.
+
+### 8.2 **Module Interaction**:
+`EventBusObjectPool` interacts closely with the event engine (`EventBus`) and the label trigger manager (`LabelTriggerManager`). The workflow is as follows:
+
+```mermaid
+sequenceDiagram
+    participant API
+    participant ObjectPool as EventBusObjectPool
+    participant EventBus
+    participant TriggerManager as LabelTriggerManager
+    
+    API->>ObjectPool: get_for_user(user_id)
+    ObjectPool->>ObjectPool: Check/Create EventBus instance
+    ObjectPool-->>API: Return EventBus instance
+    
+    API->>TriggerManager: install_instance(Label Instance)
+    TriggerManager->>TriggerManager: Update trigger hash table
+    
+    API->>TriggerManager: install_eventbus(EventBus instance)
+    TriggerManager->>EventBus: Register all listeners
+    
+    Note over EventBus: Event Bus Ready
+    API->>EventBus: publish(Event)
+    EventBus->>EventBus: Process Event
+    EventBus->>Corresponding Label: Trigger Callback Function
+```
+
+In the `StartEventBusEngine` API view, `EventBusObjectPool` is used to obtain the user's event bus instance:
+
+```python
+class StartEventBusEngine(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user_id = self.request.user.id
+        try:
+            # Get the user's event bus instance from the object pool
+            eventbus = EventBusObjectPool.get_for_user(user_id)
+            
+            # Install label instances and event bus
+            for character_instance in self.__get_all_characters_from_user(user):
+                # ... Iterate through all label instances
+                LabelTriggerManager.install_instance(label_instance)
+            
+            LabelTriggerManager.install_eventbus(eventbus)
+            
+            return Response({"message":f'event engine of user id {user_id} started'})
+        except Exception as e:
+            # Exception handling
+```
+
+---
+## 9. Core Module Explained: Label Trigger Manager (LabelTriggerManager)
 
 **Location**: `labels/models/label_trigger_manager.py`
-**Responsibility**: Acts as the **bridge** and **configuration center** between `BaseLabel` and `EventBus`. It provides a global registry for collecting trigger information from all Label classes and provides methods to "install" these static trigger functions onto dynamic, user-specific event bus instances, binding them to concrete Label instances.
+**Responsibility**: Acts as the **bridge** and **configuration center** between `BaseLabel` and `EventBus`. It provides a global registry for collecting trigger information from all label classes and provides methods to "install" these static trigger functions onto dynamic, user-specific event bus instances, binding them to concrete label instances.
 
 ### 9.1 Core Data Structure: `trigger_hash_tabel`
 
-This is a global, module-level dictionary, the core of the manager. Its structure is ingeniously designed to include both class-level configuration and instance references.
+This is a global, module-level dictionary, the core of the manager. Its structure contains both class-level configuration and instance references.
 
 ```python
 {
@@ -3012,7 +3221,7 @@ This is a global, module-level dictionary, the core of the manager. Its structur
       "listener_args": { # The trigger's listening configuration (Dict)
         "listener_type": EventBus.IMMEDIATE, # Listening mode (int)
         "listen_event": "take_damage",       # Event(s) to listen for (str/list)
-        "delay": None                        # Delay amount, only for DELAY mode (int/None)
+        "delay": None                        # Delay amount, only valid for DELAY mode (int/None)
       },
       "publish": "health_changed" # Event to publish after triggering (str/None)
     },
@@ -3029,50 +3238,50 @@ This is a global, module-level dictionary, the core of the manager. Its structur
   }
 }
 ```
-**Important Note**: Since `trigger_hash_tabel` is global, and the `"instance"` field is overwritten during the `install_instance` phase with a specific Label instance belonging to *the user currently being processed*, you **must NOT use or rely on the value of `"instance"` in `trigger_hash_tabel` directly in business logic**. Its existence is solely to provide temporary storage for the subsequent `install_to_eventbus` step.
+**Important Note**: Since `trigger_hash_tabel` is global, and the `"instance"` field is overwritten during the `install_instance` phase to be the label instance of *the user currently being processed*, **you must never use or rely on the value of `"instance"` in `trigger_hash_tabel` directly in business logic**. Its existence is solely to provide temporary storage for the subsequent `install_to_eventbus` step.
 
 ### 9.2 Core Method Flow
 
 **`register_trigger(listener_type, listen_event, publish, delay)`**:
-*   **This is a decorator factory method**. It is executed when the project starts, as the Label model classes are defined.
+*   **This is a decorator factory method**. It is executed during project startup, as label model classes are defined.
 *   **Flow**:
     1.  Receives listener parameters.
     2.  Returns a decorator function.
     3.  The decorator function receives the decorated `trigger_0` or `trigger_1` method (`func`).
-    4.  Obtains its owning class name (`func_class_name`) and method name (`func_name`) by parsing `func.__qualname__`.
+    4.  Obtains its owning class name (`func_class_name`) and method name (`func_name`) by analyzing `func.__qualname__`.
     5.  Creates or updates the entry for the corresponding class name and method name in `trigger_hash_tabel`, storing the function reference and listening configuration.
     6.  Initializes the `"instance"` field for this class to `None`.
     7.  Returns the original function `func`, not affecting its normal behavior.
 *   **Effect**: After project startup, all decorated trigger functions and their meta-information are automatically registered into the global lookup table.
 
 **`install_instance(instance: BaseLabel)`**:
-*   **Called When**: Called by the `StartEventBusEngine` view when iterating through all of a user's Label instances.
+*   **Called when**: Called by the `StartEventBusEngine` view when iterating through all of the user's label instances.
 *   **Flow**:
     1.  Checks if the instance is a subclass of `BaseLabel`.
     2.  Gets the instance's class name.
-    3.  If this class name exists in `trigger_hash_tabel`, overwrites the `"instance"` field for this class with the current concrete **instance**.
-*   **Purpose**: To provide a specific object (`self`) for each trigger function in the next step of installing to the event bus.
+    3.  If this class name exists in `trigger_hash_tabel`, overwrites the `"instance"` field for this class with the current, specific **instance**.
+*   **Purpose**: To provide a concrete object (`self`) for each trigger function during the next step of installing the event bus.
 
 **`install_to_eventbus(eventBus: EventBus)`**:
-*   **Called When**: Called by the `StartEventBusEngine` view immediately after the `install_instance` loop.
+*   **Called when**: Called immediately after the `install_instance` loop by the `StartEventBusEngine` view.
 *   **Flow**:
-    1.  Checks if the event bus has already been installed to avoid re-installation.
-    2.  Iterates through each Label class entry in `trigger_hash_tabel`.
-    3.  Gets the `"instance"` under this entry. It should now be a concrete instance, not `None`.
-    4.  Iterates through the `"trigger_0"` and `"trigger_1"` under this entry.
+    1.  Checks if the event bus has already been installed to avoid duplicate installation.
+    2.  Iterates through every label class entry in `trigger_hash_tabel`.
+    3.  Gets the `"instance"` under that entry. At this point, it should be a concrete instance, not `None`.
+    4.  Iterates through the `"trigger_0"` and `"trigger_1"` under that entry.
     5.  **Wrap Callback Function**:
-        *   Based on the `publish` parameter in the trigger configuration, decide whether to wrap the original `trigger_` function using the `eventBus.publish_event(publish)` decorator. The wrapped function will automatically publish the specified event after executing the original logic. The function wrapped by `eventBus.publish_event(publish)` is used to update the `func` field in the corresponding `trigger_hash_tabel`, ensuring that the required event publishing functionality is effective when the user calls `call()`.
-        *   Creates a **Lambda function** `callback`. This Lambda captures the current trigger configuration (`current_trigger`) and instance (`instance`). When called, it executes `current_trigger["func"](instance)`. **This step is key**. It binds a normal class method (`HealthLabel.trigger_0`) to a concrete instance (`health_label_instance_23`), forming a directly callable function object.
-    6.  **Register to Event Bus**: Based on the configuration in `listener_args`, calls the corresponding `add_*_listener` method of the event bus to register the `callback` function created in the previous step. The event source (`listen_event`) to listen for is the event specified in the configuration.
-*   **Final State**: Thereafter, the mission of the global `trigger_hash_tabel` is essentially complete. The event bus (`eventBus`) internally stores all configured listener callbacks. When the corresponding events are published, these callbacks will be executed, operating on the previously installed concrete Label instances.
+        *   Based on the `publish` parameter in the trigger configuration, decides whether to wrap the original `trigger_` function using the `eventBus.publish_event(publish)` decorator. The wrapped function will automatically publish the specified event after executing the original logic. The function wrapped by `eventBus.publish_event(publish)` is used to update the corresponding `func` field in `trigger_hash_tabel`, ensuring the required event publishing functionality takes effect when `call()` is invoked by the user.
+        *   Creates a **Lambda function** `callback`. This Lambda captures the current trigger configuration (`current_trigger`) and instance (`instance`). When called, it executes `current_trigger["func"](instance)`. **This step is key**. It binds a normal class method (`HealthLabel.trigger_0`) with a concrete instance (`health_label_instance_23`) into a directly callable function object.
+    6.  **Register to Event Bus**: Based on the configuration in `listener_args`, calls the corresponding `add_*_listener` method of the event bus to register the `callback` function created in the previous step. The listened event source (`listen_event`) is the event specified in the configuration.
+*   **Final State**: Thereafter, the mission of the global `trigger_hash_tabel` is largely complete. The event bus (`eventBus`) internally stores all configured listener callbacks. When the corresponding events are published, these callbacks will be executed, operating on the previously installed, specific label instances.
 
 **`call(label_instance: BaseLabel, action: str)`**:
-*   **Called When**: Typically called by API views like `LabelTriggerView` to manually trigger a specific action of a Label.
+*   **Called when**: Typically called by API views like `LabelTriggerView` to manually trigger a specific action of a label.
 *   **Flow**:
     1.  Validates the instance.
     2.  Based on the instance's class name and the specified action (`'trigger_0'` or `'trigger_1'`), finds the corresponding original function (`func`) from `trigger_hash_tabel`.
     3.  **Directly calls** this original function, passing `label_instance` as the `self` parameter: `func(label_instance)`.
-*   **Note**: This method **bypasses the event bus**. It directly triggers the Label's trigger logic. If the original function (`func`) has a non-None `publish` parameter in its trigger configuration, it will publish the specified event to the event bus.
+*   **Note**: This method **bypasses the event bus**. It directly triggers the label's trigger logic. If the original function (`func`) has a non-None `publish` parameter in its trigger configuration, it will publish the specified event to the event bus.
 
 ### 9.3 Label Trigger Manager (LabelTriggerManager) Workflow
 
@@ -3121,8 +3330,8 @@ sequenceDiagram
     *   Iterates through all of the user's Label instances → Calls `install_instance` for each instance → Updates the `"instance"` field in `trigger_hash_tabel` (dynamic reference).
     *   Calls `install_to_eventbus` → Reads `trigger_hash_tabel` → Creates callbacks bound to instances for each trigger → Registers these callbacks to the user's `EventBus`.
 3.  **At Runtime (Triggering)**:
-    *   **Method A (Event-driven)**: Some code `publish("event_A")` → `EventBus` finds callbacks listening for `"event_A"` and executes them → Callback function (i.e., `trigger_0` bound to an instance) executes → Modifies Label data.
-    *   **Method B (Direct Call)**: API calls `LabelTriggerView` → Its internals call `LabelTriggerManager.call(instance, 'trigger_1')` → Directly executes the Label instance's `trigger_1` method.
+    *   **Method A (Event-driven)**: Some code `publish("event_A")` → `EventBus` finds callbacks listening for `"event_A"` and executes them → Callback function (i.e., bound `trigger_0`) executes → Modifies Label data.
+    *   **Method B (Direct Call)**: API calls `LabelTriggerView` → Its internals call `LabelTriggerManager.call(instance, 'trigger_1')` → Directly executes the label instance's `trigger_1` method.
 
 ### 9.5 Event Chain Example Diagram (## Portfolio Update Triggers Risk Assessment)
 
@@ -3156,32 +3365,30 @@ sequenceDiagram
     API -->> FE: HTTP 200 OK
 ```
 
-
-**Explanation**: The use case demonstrates a common chain reaction in quantitative strategies: when the portfolio value changes, the system automatically triggers a risk assessment process, ensuring risk control keeps pace with asset movements.
+**Explanation**: The use case demonstrates a common chain reaction in quantitative strategies: when the portfolio value changes, the system automatically triggers the risk assessment process, ensuring risk control keeps pace with asset changes.
 
 ---
-
 ## 10. API Interface Details
 
 ### 10.1 Start Event Engine `GET /api/eventbus/start/`
 
 **View**: `StartEventBusEngine`
-**Permission**: `IsAuthenticated`
+**Permissions**: `IsAuthenticated`
 **Flow**:
-1.  Gets the currently logged-in user's ID.
-2.  Gets the user-specific `EventBus` instance from `EventBusObjectPool` (creates it if it doesn't exist).
+1.  Get the currently logged-in user's ID.
+2.  Get the user-specific `EventBus` instance from `EventBusObjectPool` (create it if it doesn't exist).
 3.  **Traverse User Data**:
-    *   Using Django model's reverse relationships (`user.<related_name>_character.all()`), finds all Character instances created by this user.
-    *   For each Character instance, uses reflection (`_meta.get_fields()`) to find all its associated Container instances.
-    *   For each Container instance, uses reflection to find all its associated Label instances.
-4.  **Install Triggers**: For each found Label instance, calls `LabelTriggerManager.install_instance(label_instance)`.
-5.  **Register Event Bus**: Calls `LabelTriggerManager.install_to_eventbus(eventbus)`, completing the final registration of all triggers on the event bus.
-6.  Returns a success response.
+    *   Find all Character instances created by this user via Django model reverse relationships (`user.<related_name>_character.all()`).
+    *   For each Character instance, use reflection (`_meta.get_fields()`) to find all its associated Container instances.
+    *   For each Container instance, use reflection to find all its associated Label instances.
+4.  **Install Triggers**: For each found Label instance, call `LabelTriggerManager.install_instance(label_instance)`.
+5.  **Register Event Bus**: Call `LabelTriggerManager.install_to_eventbus(eventbus)` to complete the final registration of all triggers on the event bus.
+6.  Return a success response.
 
 **Purpose**: This call is **necessary to activate the user's event-driven functionality**. It establishes the connection between the user's data (Label instances) and the event system.
 
 **API Request Sequence Diagram (Start Event Engine)**
-**Description**: This diagram details the call sequence of the `/api/eventbus/start/` API.
+**Description**: This diagram details the call sequence for the `/api/eventbus/start/` API.
 
 ```mermaid
 sequenceDiagram
@@ -3219,23 +3426,22 @@ sequenceDiagram
 ### 10.2 Trigger Label Action `POST /api/label/trigger/?label_uuid=...&trigger=...`
 
 **View**: `LabelTriggerView`
-**Permission**: `IsAuthenticated`
+**Permissions**: `IsAuthenticated`
 **Query Parameters**:
-*   `label_uuid` (Required): The UUID of the target Label instance to look up via `InstanceHashTable`.
+*   `label_uuid` (Required): The UUID of the target label instance to look up via `InstanceHashTable`.
 *   `trigger` (Required): The action to trigger, must be `'0'` or `'1'`, corresponding to `trigger_0` and `trigger_1` respectively.
 
 **Flow**:
-1.  Validates parameters.
-2.  Checks if the corresponding user's `EventBus` has been started via `StartEventBusEngine`.
-3.  Uses `InstanceHashTable.get_instance_by_uuid(label_uuid)` to find the specific Label instance by UUID. **This is key to achieving cross-model dynamic lookup**.
-4.  Calls `LabelTriggerManager.call(label_instance, f'trigger_{trigger}')` to **directly execute** the specified trigger method.
-5.  Manually calls `eventbus.process()` to **process the event queue**. This step is crucial because the direct call to `call()` might have triggered some events (e.g., the trigger function might have called `publish` internally); letting the event bus process these newly generated events is necessary to see the complete chain reaction effect.
-6.  Returns the operation result.
+1.  Validate parameters.
+2.  Check if the corresponding user's `EventBus` has been started via `StartEventBusEngine`.
+3.  Use `InstanceHashTable.get_instance_by_uuid(label_uuid)` to find the specific label instance by UUID. **This is key to achieving dynamic cross-model lookup**.
+4.  Call `LabelTriggerManager.call(label_instance, f'trigger_{trigger}')` to **directly execute** the specified trigger method.
+5.  Manually call `eventbus.process()` to **process the event queue**. This step is crucial because directly calling `call()` might trigger some events (e.g., the trigger function might internally call `publish`), and letting the event bus process these newly generated events is necessary to see the complete chain reaction effect.
+6.  Return the operation result.
 
-**Purpose**: Provides a generic interface for the frontend to manually trigger a specific action of a Label and advance the event chain. For example, a "Run Backtest" button on the frontend could call this API to trigger the `trigger_0` action (calculate performance metrics) of a strategy's "Sharpe Ratio" Label, which might further trigger subsequent events like risk assessment and report generation.
+**Purpose**: Provides a generic interface for the frontend to manually trigger a specific action of a label and propel the event chain. For example, a frontend "Run Backtest" button could call this API to trigger the `trigger_0` action (calculate performance metrics) of a strategy's "Sharpe Ratio" label, which might further trigger subsequent events like risk assessment and report generation.
 
-(Documentation for Chapter 10 API Interfaces is being updated along with the project. Last update: 29-8-2025)
+(Documentation for Chapter 10 API Interfaces is being updated along with the project, last update date: 29-8-2025)
 
 ---
-
 
