@@ -1201,16 +1201,17 @@ sequenceDiagram
 ---
 ## 繁体中文版
 
-# 量化策略管理與監控系統 - 核心架構開發文檔
+---
+# 量化策略管理與監控系統 - 核心架構開發文件
 
 ## 1. 概述
 
-本項目的核心是構建一個高度動態化、可擴展的量化策略管理與監控系統，該系統從批量部署、運行、監控、追踪、留檔五個方面自動化了量化策略的開發、部署以及評估。其基石是 **“一標簽，一模型” (One Label, One Model)** 的設計理念。該系統允許開發者或高級用戶通過創建Django模型的方式，從零開始定義全新的策略監控項目，包括其數據結構（標簽）、組織方式（容器）以及複雜的數據交互邏輯（事件驅動的觸發器）。
+本項目的核心是構建一個高度動態化、可擴展的量化策略管理與監控系統，該系統從批量部署、運行、監控、追蹤、留檔五個方面自動化了量化策略的開發、部署以及評估。其基石是 **「一標籤，一模型」 (One Label, One Model)** 的設計理念。該系統允許開發者或進階使用者透過建立Django模型的方式，從零開始定義全新的策略監控項目，包括其資料結構（標籤）、組織方式（容器）以及複雜的資料互動邏輯（事件驅動的觸發器）。
 
 ### 1.1 核心概念
 *   **角色 (Character)**: 定義一個量化策略的藍圖。例如：`套利策略`、`均值回歸策略`、`定投策略`。
-*   **容器 (Container)**: 用于對量化策略進行邏輯分組。例如：`基礎信息`、`模型參數`、`評估指標`。一個角色由多個容器構成。
-*   **標簽 (Label)**: 角色最基礎的數據單元，代表一個具體的屬性。例如：`交易頻率`、`最大回撤`、`上次交易時間`、`夏普比率`。每個標簽都是一個獨立的Django模型。標簽被放置在容器中。
+*   **容器 (Container)**: 用於對量化策略進行邏輯分組。例如：`基礎資訊`、`模型參數`、`評估指標`。一個角色由多個容器構成。
+*   **標籤 (Label)**: 角色最基礎的資料單元，代表一個具體的屬性。例如：`交易頻率`、`最大回撤`、`上次交易時間`、`夏普比率`。每個標籤都是一個獨立的Django模型。標籤被放置在容器中。
 
 ```mermaid
 graph TB
@@ -1219,13 +1220,13 @@ graph TB
     Character --> Container2[容器 2]
     Character --> Container3[容器 3]
     
-    Container1 --> Label1[標簽 1]
-    Container1 --> Label2[標簽 2]
-    Container2 --> Label3[標簽 3]
-    Container2 --> Label4[標簽 4]
-    Container3 --> Label5[標簽 5]
+    Container1 --> Label1[標籤 1]
+    Container1 --> Label2[標籤 2]
+    Container2 --> Label3[標籤 3]
+    Container2 --> Label4[標籤 4]
+    Container3 --> Label5[標籤 5]
     
-    Label1 --> EventBus[事件總綫]
+    Label1 --> EventBus[事件匯流排]
     Label2 --> EventBus
     Label3 --> EventBus
     Label4 --> EventBus
@@ -1249,15 +1250,15 @@ graph TB
     │
     └── 包含多個 (1:N) → 容器實例 (BaseContainer Subclass)
         │
-        └── 包含一個 (1:N) → 標簽實例 (BaseLabel Subclass)
+        └── 包含一個 (1:N) → 標籤實例 (BaseLabel Subclass)
 ```
 **關係約束**:
-*   一個**角色模板類**對應一種角色類型。
-*   一個**角色實例**通過 `OneToOneField` 關聯多個**容器實例**。
-*   一個**容器實例**通過 `OneToOneField` 關聯多個**標簽實例**。
-*   一個**標簽模型**定義一種數據類型（如 `交易頻率`）。
-*   一個**標簽實例**只能屬於一個**容器**。其 `used_in_container` 字段記錄了所屬容器的類名。
-*   一個**容器實例**只能屬於一個**角色**。其 `used_in_character` 字段記錄了所屬角色模板的類名。
+*   一個**角色範本類**對應一種角色類型。
+*   一個**角色實例**透過 `OneToOneField` 關聯多個**容器實例**。
+*   一個**容器實例**透過 `OneToOneField` 關聯多個**標籤實例**。
+*   一個**標籤模型**定義一種資料類型（如 `交易頻率`）。
+*   一個**標籤實例**只能屬於一個**容器**。其 `used_in_container` 欄位記錄了所屬容器的類別名稱。
+*   一個**容器實例**只能屬於一個**角色**。其 `used_in_character` 欄位記錄了所屬角色範本的類別名稱。
 
 ### 1.3 總覽
 
@@ -1319,93 +1320,93 @@ classDiagram
 ```
 ---
 
-## 2. 核心模型詳解：數據庫結構
+## 2. 核心模型詳解：資料庫結構
 
-### 2.1 標簽模型 (`BaseLabel`)
+### 2.1 標籤模型 (`BaseLabel`)
 
 **位置**: `labels/models/base_label.py`
-**職責**: 所有標簽模型的抽象基類。定義了標簽的基本結構和行爲。
+**職責**: 所有標籤模型的抽象基礎類別。定義了標籤的基本結構和行為。
 
-**核心字段**:
-*   `label_name` (`LabelNameField`): 標簽的名稱，如“交易頻率”、“上次交易時間”。
-*   `label_value` (`LabelTextField`): 標簽的值。**注意**: 在實際的自定義標簽中，您應重寫此字段爲更合適的類型（如 `IntegerField`, `CharField`）。
-*   `label_type` (`LabelChoiceField`): 標簽的交互類型，該字段會體現在WebUI中（如：只讀、可互動）。
-*   `label_display_format` (`LabelDisplayFormatField`): 控制標簽在前端如何展示的格式字符串。默認格式爲`'<標簽名>: <分隔><標簽值>'`。開發者可通過組合`<標簽名>`、`<標簽值>`和`<分隔>`（用于視覺分組）來自定義顯示樣式，系統會自動替換占位符。此字段在保存時會進行驗證，確保格式有效。
-*   `used_in_container` (`LabelsContainerField`): **一個字符串字段**，用于記錄此標簽實例所屬容器的類名。這是一個關鍵的元數據字段，用于維護標簽與容器的歸屬關係，幷在容器清理(`clean()`)時進行驗證。
+**核心欄位**:
+*   `label_name` (`LabelNameField`): 標籤的名稱，如「交易頻率」、「上次交易時間」。
+*   `label_value` (`LabelTextField`): 標籤的值。**注意**: 在實際的自訂標籤中，您應重寫此欄位為更合適的類型（如 `IntegerField`, `CharField`）。
+*   `label_type` (`LabelChoiceField`): 標籤的互動類型，該欄位會體現在WebUI中（如：唯讀、可互動）。
+*   `label_display_format` (`LabelDisplayFormatField`): 控制標籤在前端如何展示的格式字串。預設格式為`'<標籤名>: <分隔><標籤值>'`。開發者可透過組合`<標籤名>`、`<標籤值>`和`<分隔>`（用於視覺分組）來自訂顯示樣式，系統會自動替換佔位符。此欄位在儲存時會進行驗證，確保格式有效。
+*   `used_in_container` (`LabelsContainerField`): **一個字串欄位**，用於記錄此標籤實例所屬容器的類別名稱。這是一個關鍵的中繼資料欄位，用於維護標籤與容器的歸屬關係，並在容器清理(`clean()`)時進行驗證。
 
 **核心方法**:
-*   `get_name()`, `get_value()`:  final方法，獲取標簽的名稱和值。
-*   `trigger_0()`, `trigger_1()`: 空方法。預期在子類中重寫，用于定義標簽被觸發時的行爲。通常成對出現，代表互斥的操作（如`買入/賣出`）。
-*   `save()`: 重寫了Django模型的保存方法。當一個新的標簽實例被創建時（`self._state.adding` 爲 `True`），它會自動在全域的 `InstanceHashTable` 中注册一條記錄。**這個機制是實現動態架構和跨模型實例追踪的關鍵**，它使得系統能够感知和管理所有創建的實例，無論它們屬￿哪個具體的模型。
-*   `delete()`: 重寫了Django模型的删除方法。在删除標簽實例自身之前，會先從 `InstanceHashTable` 中注銷對應的記錄，保持哈希表的數據一致性。
+*   `get_name()`, `get_value()`:  final方法，取得標籤的名稱和值。
+*   `trigger_0()`, `trigger_1()`: 空方法。預期在子類別中重寫，用於定義標籤被觸發時的行為。通常成對出現，代表互斥的操作（如`買入/賣出`）。
+*   `save()`: 重寫了Django模型的儲存方法。當一個新的標籤實例被建立時（`self._state.adding` 為 `True`），它會自動在全域的 `InstanceHashTable` 中註冊一條記錄。**這個機制是實現動態架構和跨模型實例追蹤的關鍵**，它使得系統能夠感知和管理所有建立的實例，無論它們屬於哪個具體的模型。
+*   `delete()`: 重寫了Django模型的刪除方法。在刪除標籤實例自身之前，會先從 `InstanceHashTable` 中註銷對應的記錄，保持雜湊表的資料一致性。
 
 **繼承與使用**:  
-要創建一個新的自定義標簽，必須繼承此 `BaseLabel` 抽象類，幷至少重寫 `label_value` 字段以定義正確的數據類型。同時，應根據需要實現 `trigger_0` 和 `trigger_1` 方法來完成交互邏輯。
+要建立一個新的自訂標籤，必須繼承此 `BaseLabel` 抽象類別，並至少重寫 `label_value` 欄位以定義正確的資料類型。同時，應根據需要實現 `trigger_0` 和 `trigger_1` 方法來完成互動邏輯。
 
-### 2.2 預設標簽字段 (`label_field.py`)
+### 2.2 預設標籤欄位 (`label_field.py`)
 
-**位置**: `labels/models/label_field.py`  
-**職責**: 提供一系列預設的Django模型字段類，這些字段已配置了適用于標簽系統的默認元數據（如`verbose_name`）。它們主要用于在定義具體標簽模型時，快速、規範地聲明字段。
+**位置**: `labels/models/label_field.py`  
+**職責**: 提供一系列預設的Django模型欄位類別，這些欄位已配置了適用於標籤系統的預設中繼資料（如`verbose_name`）。它們主要用於在定義具體標籤模型時，快速、規範地宣告欄位。
 
-**字段列表及說明**:
+**欄位列表及說明**:
 
-- `LabelNameField`: 繼承自 `CharField`。用于標簽名稱，默認 `verbose_name='標簽名稱'`。
+- `LabelNameField`: 繼承自 `CharField`。用於標籤名稱，預設 `verbose_name='標籤名稱'`。
     
-- `LabelCharField`: 繼承自 `CharField`。用于短文本值，默認 `verbose_name='標簽值'`。
+- `LabelCharField`: 繼承自 `CharField`。用於短文字值，預設 `verbose_name='標籤值'`。
     
-- `LabelTextField`: 繼承自 `TextField`。用于長文本值，默認 `verbose_name='標簽值'`。
+- `LabelTextField`: 繼承自 `TextField`。用於長文字值，預設 `verbose_name='標籤值'`。
     
-- `LabelIntegerField`: 繼承自 `IntegerField`。用于整數值，默認 `verbose_name='標簽值'`。
+- `LabelIntegerField`: 繼承自 `IntegerField`。用於整數值，預設 `verbose_name='標籤值'`。
     
-- `LabelFloatField`: 繼承自 `FloatField`。用于浮點數值，默認 `verbose_name='標簽值'`。
+- `LabelFloatField`: 繼承自 `FloatField`。用於浮點數值，預設 `verbose_name='標籤值'`。
     
-- `LabelDateField`, `LabelDateTimeField`, `LabelTimeField`, `LabelDurationField`: 分別繼承自相應的日期時間字段，默認 `verbose_name='標簽值'`。
+- `LabelDateField`, `LabelDateTimeField`, `LabelTimeField`, `LabelDurationField`: 分別繼承自相應的日期時間欄位，預設 `verbose_name='標籤值'`。
     
-- `LabelUUIDField`: 繼承自 `UUIDField`。用于生成唯一標識符，默認配置爲 `editable=False`, `unique=True`, `default=uuid.uuid4`。通常用于需要唯一ID的場景。
+- `LabelUUIDField`: 繼承自 `UUIDField`。用於產生唯一識別碼，預設配置為 `editable=False`, `unique=True`, `default=uuid.uuid4`。通常用於需要唯一ID的場景。
     
-- `LabelChoiceField`: 繼承自 `CharField`。用于定義標簽類型，預先設置了 `choices=[('timer','計時器'),('counter','步進器'),('read_only','只讀')]` 以及相應的 `verbose_name` 和 `help_text`。
+- `LabelChoiceField`: 繼承自 `CharField`。用於定義標籤類型，預先設定了 `choices=[('timer','計時器'),('counter','步進器'),('read_only','唯讀')]` 以及相應的 `verbose_name` 和 `help_text`。
     
-- `LabelsContainerField`: 繼承自 `CharField`。用于 `BaseLabel.used_in_container`，默認 `verbose_name='所屬容器'`，幷包含幫助文本。
+- `LabelsContainerField`: 繼承自 `CharField`。用於 `BaseLabel.used_in_container`，預設 `verbose_name='所屬容器'`，並包含幫助文字。
     
-- `LabelDisplayFormatField`: 繼承自 `CharField`。用于定義展示格式，包含自定義驗證邏輯，確保格式字符串包含必要的占位符且符合規則。
+- `LabelDisplayFormatField`: 繼承自 `CharField`。用於定義展示格式，包含自訂驗證邏輯，確保格式字串包含必要的佔位符且符合規則。
     
 
 **使用建議**:  
-在定義具體的標簽模型時，可以直接使用這些預設字段，它們提供了符合標簽系統約定的默認配置，有助于保持整個項目字段定義的一致性。例如，在自定義一個“最大回撤”標簽時，其 `label_value` 應重寫爲 `LabelFloatField(default=100)` 而不是普通的 `models.IntegerField`。
+在定義具體的標籤模型時，可以直接使用這些預設欄位，它們提供了符合標籤系統約定的預設配置，有助於保持整個項目欄位定義的一致性。例如，在自訂一個「最大回撤」標籤時，其 `label_value` 應重寫為 `LabelFloatField(default=100)` 而不是普通的 `models.IntegerField`。
 ### 2.3 容器模型 (`BaseContainer`)
 
 **位置**: `containers/models/base_container.py`
-**職責**: 所有容器模型的抽象基類。充當標簽的邏輯分組和物理載體。
+**職責**: 所有容器模型的抽象基礎類別。充當標籤的邏輯分組和實體載體。
 
-**核心字段**:
+**核心欄位**:
 *   `container_name` (`CharField`): 容器的名稱。
-*   `container_type` (`CharField`): 容器的類型（如：展示、交互、隱藏）。
-*   `used_in_character` (`ContainerCharacterField`): **一個字符串字段**，用于記錄此容器實例所屬角色模板的類名。
-*   **注意**: 容器通過具體的 `OneToOneField` 字段（定義在子類中）來關聯標簽實例。
+*   `container_type` (`CharField`): 容器的類型（如：展示、互動、隱藏）。
+*   `used_in_character` (`ContainerCharacterField`): **一個字串欄位**，用於記錄此容器實例所屬角色範本的類別名稱。
+*   **注意**: 容器透過具體的 `OneToOneField` 欄位（定義在子類別中）來關聯標籤實例。
 
 **核心方法**:
-*   `clean()`: 重寫。在保存容器前進行驗證。它會檢查容器想要關聯的所有標簽實例的 `used_in_container` 字段。如果某個標簽已被其他容器占用，則會拋出 `ValidationError`。驗證通過後，它會將這些標簽的 `used_in_container` 字段設置爲當前容器的類名，標記其爲“已使用”。
-*   `save()`: 類似 `BaseLabel`，用于實例注册。
-*   `delete()`: 重寫。非常重要！當容器被删除時，它會執行級聯删除：
-    1.  **遍歷所有通過 `OneToOneField` 關聯到它的標簽實例**，幷删除這些標簽實例。
-    2.  從 `InstanceHashTable` 中注銷自己。
-    3.  最後删除自身。
-*   `__get_all_label_from_container()`: 一個私有方法，用于獲取當前容器實例關聯的所有標簽實例的列表。`clean()` 和 `delete()` 方法都依賴它。
+*   `clean()`: 重寫。在儲存容器前進行驗證。它會檢查容器想要關聯的所有標籤實例的 `used_in_container` 欄位。如果某個標籤已被其他容器佔用，則會拋出 `ValidationError`。驗證通過後，它會將這些標籤的 `used_in_container` 欄位設定為目前容器的類別名稱，標記其為「已使用」。
+*   `save()`: 類似 `BaseLabel`，用於實例註冊。
+*   `delete()`: 重寫。非常重要！當容器被刪除時，它會執行級聯刪除：
+    1.  **遍歷所有透過 `OneToOneField` 關聯到它的標籤實例**，並刪除這些標籤實例。
+    2.  從 `InstanceHashTable` 中註銷自己。
+    3.  最後刪除自身。
+*   `__get_all_label_from_container()`: 一個私有方法，用於取得目前容器實例關聯的所有標籤實例的清單。`clean()` 和 `delete()` 方法都依賴它。
 
-**容器關聯字段**:
-`container_label_field.py` 中的 `ContainerLabelField` 是一個便捷類，它預設了 `on_delete=models.SET_NULL`, `null=True`, `related_name='+'` 的 `OneToOneField`，用于在容器子類中關聯標簽模型。
+**容器關聯欄位**:
+`container_label_field.py` 中的 `ContainerLabelField` 是一個便捷類別，它預設了 `on_delete=models.SET_NULL`, `null=True`, `related_name='+'` 的 `OneToOneField`，用於在容器子類別中關聯標籤模型。
 
-#### 2.3.1 容器模型删除級聯示意圖
+#### 2.3.1 容器模型刪除級聯示意圖
 ```mermaid
 flowchart TD
-    A[删除容器實例] --> B[遍歷所有OneToOneField關聯的標簽]
-    B --> C[删除標簽實例1]
-    B --> D[删除標簽實例2]
-    B --> E[删除標簽實例N]
+    A[刪除容器實例] --> B[遍歷所有OneToOneField關聯的標籤]
+    B --> C[刪除標籤實例1]
+    B --> D[刪除標籤實例2]
+    B --> E[刪除標籤實例N]
     C --> F[從InstanceHashTable移除記錄]
     D --> F
     E --> F
-    F --> G[删除容器自身]
+    F --> G[刪除容器自身]
     G --> H[從InstanceHashTable移除記錄]
 ```
 
@@ -1413,43 +1414,74 @@ flowchart TD
 ### 2.4 角色模型 (`BaseCharacter`)
 
 **位置**: `characters/models/base_character.py`
-**職責**: 所有角色模板模型的抽象基類。代表一個完整的、可實例化的角色類型。
+**職責**: 所有角色範本模型的抽象基礎類別。代表一個完整的、可實例化的角色類型。
 
-**核心字段**:
-*   `character_name` (`CharField`): 角色模板的名稱。
-*   `user` (`ForeignKey` to `User`): 創建幷擁有此角色實例的用戶。
+**核心欄位**:
+*   `character_name` (`CharField`): 角色範本的名稱。
+*   `user` (`ForeignKey` to `User`): 建立並擁有此角色實例的用戶。
 
 **核心方法**:
-*   `clean()`: 重寫。邏輯與 `BaseContainer.clean()` 類似。驗證所有關聯的容器實例的 `used_in_character` 字段，確保它們未被其他角色占用，幷通過後將其標記爲已使用。
-*   `save()`: 用于實例注册。
-*   `delete()`: 重寫。從 `InstanceHashTable` 中注銷自己。**注意**: 它默認不會級聯删除容器和標簽。如果需要此功能，需要在子類或删除視圖邏輯中實現。
-*   `__get_all_containers_from_character()`: 私有方法，用于獲取當前角色實例關聯的所有容器實例的列表。
+*   `clean()`: 重寫。邏輯與 `BaseContainer.clean()` 類似。驗證所有關聯的容器實例的 `used_in_character` 欄位，確保它們未被其他角色佔用，並通過後將其標記為已使用。
+*   `save()`: 用於實例註冊。
+*   `delete()`: 重寫。從 `InstanceHashTable` 中註銷自己。**注意**: 它預設不會級聯刪除容器和標籤。如果需要此功能，需要在子類別或刪除視圖邏輯中實現。
+*   `__get_all_containers_from_character()`: 私有方法，用於取得目前角色實例關聯的所有容器實例的清單。
 
-**角色關聯字段**:
-`CharacterContainerField` 是一個預設的 `OneToOneField`，用于在角色子類中關聯容器模型。
+**角色關聯欄位**:
+`CharacterContainerField` 是一個預設的 `OneToOneField`，用於在角色子類別中關聯容器模型。
+
+___
+
+## 3. 核心模組詳解：全域模型實例雜湊表
+
+**位置**: `/api/models/instance_hash_table/instance_hash_table.py`
+**職責**: `InstanceHashTable` 是一個通用的雜湊表模型，使用Django的ContentTypes框架為系統中的任意模型實例提供全域唯一的UUID識別碼。這個模組實現了模型實例與UUID之間的雙向映射，為系統提供了統一的實例識別和檢索機制。
+
+### 3.1 核心欄位
+- `hash_value: models.UUIDField`：儲存模型實例的唯一UUID識別碼
+- `content_type: models.ForeignKey(ContentType)`：關聯到Django的ContentType模型，記錄目標實例的模型類型  
+- `object_id: models.PositiveIntegerField`：關聯到Django的ContentType模型，記錄目標實例的模型類型
+- `content_object: GenericForeignKey('content_type', 'object_id')`：通用外鍵欄位，提供對實際模型實例的直接存取
+
+### 3.2 核心方法
+
+`get_uuid_for_instance(instance) -> str | None`：靜態方法，取得指定模型實例在雜湊表中的UUID識別碼
+
+**參數**:
+- `instance` - 任意Django模型實例
+**傳回值**:
+- `str` - 實例的UUID字串（如果存在）
+- `None` - 如果雜湊表中沒有該實例的記錄
+
+`get_instance_by_uuid(uuid_str: str) -> object | None`：靜態方法，透過UUID字串檢索對應的模型實例
+
+**參數**:
+- `uuid_str: str` - UUID字串
+**傳回值**:
+- `object` - 找到的模型實例
+- `None` - 如果UUID無效或找不到對應的實例
 
 ---
-## 3. 模型注册系統
+## 4. 模型註冊系統
 
-### 3.1 模型注册機制 (`ModelRegister`)
+### 4.1 模型註冊機制 (`ModelRegister`)
 
 **位置**: `api/models/register.py`
-**職責**: 自動發現和注册所有自定義的標簽、容器和角色模板模型，確保它們被系統正確識別和管理。
+**職責**: 自動發現和註冊所有自訂的標籤、容器和角色範本模型，確保它們被系統正確識別和管理。
 
 **核心屬性**:
-*   `registered_labels`: 存儲所有已注册的標簽模型類。
-*   `registered_containers`: 存儲所有已注册的容器模型類。
-*   `registered_characters`: 存儲所有已注册的角色模板模型類。
+*   `registered_labels`: 儲存所有已註冊的標籤模型類別。
+*   `registered_containers`: 儲存所有已註冊的容器模型類別。
+*   `registered_characters`: 儲存所有已註冊的角色範本模型類別。
 
 **核心方法**:
 *   `load_all_characters()`: 
-    *   **功能**: 掃描 `characters/models/characters` 目錄下的所有Python文件，幷導入它們。
-    *   **機制**: 通過導入角色模型文件，會鏈式觸發其中導入的容器和標簽模型的裝飾器注册。
-    *   **注意**: 只有在角色模型中明確導入的容器和標簽才會被注册和遷移。
-*   `check_registered()`: 檢查是否有至少一個注册的角色、容器和標簽模型，如果沒有則報錯幷退出。
-*   `label_register()`, `container_register()`, `character_register()`: 裝飾器函數，用于將模型類注册到對應的列表中。
+    *   **功能**: 掃描 `characters/models/characters` 目錄下的所有Python檔案，並匯入它們。
+    *   **機制**: 透過匯入角色模型檔案，會鏈式觸發其中匯入的容器和標籤模型的裝飾器註冊。
+    *   **注意**: 只有在角色模型中明確匯入的容器和標籤才會被註冊和遷移。
+*   `check_registered()`: 檢查是否有至少一個註冊的角色、容器和標籤模型，如果沒有則報錯並退出。
+*   `label_register()`, `container_register()`, `character_register()`: 裝飾器函數，用於將模型類別註冊到對應的清單中。
 
-**使用示例**:
+**使用範例**:
 ```python
 from api.models.register import ModelRegister
 
@@ -1467,7 +1499,7 @@ class SomeTradeModel(BaseCharacter):
     trade_info_container = CharacterContainerField(to=TradeInfoContainer)
 ```
 
-**注册流程示意圖**:
+**註冊流程示意圖**:
 ```mermaid
 sequenceDiagram
     participant Startup
@@ -1475,28 +1507,28 @@ sequenceDiagram
     participant CharacterFiles
     participant Decorators
     
-    Note over Startup: 項目啓動/Django加載
+    Note over Startup: 項目啟動/Django載入
     Startup->>ModelRegister: load_all_characters()
     
     loop 遍歷characters/models目錄
-        ModelRegister->>CharacterFiles: 導入Python文件
+        ModelRegister->>CharacterFiles: 匯入Python檔案
         CharacterFiles->>Decorators: 觸發@character_register
-        Decorators->>ModelRegister: 注册角色類
+        Decorators->>ModelRegister: 註冊角色類別
         
         CharacterFiles->>Decorators: 觸發@container_register
-        Decorators->>ModelRegister: 注册容器類
+        Decorators->>ModelRegister: 註冊容器類別
         
         CharacterFiles->>Decorators: 觸發@label_register  
-        Decorators->>ModelRegister: 注册標簽類
+        Decorators->>ModelRegister: 註冊標籤類別
     end
     
     Startup->>ModelRegister: check_registered()
     ModelRegister-->>Startup: 驗證通過/報錯退出
 ```
 
-### 3.2 模型注册系統檢查
+### 4.2 模型註冊系統檢查
 
-確保 `admin.py` 被正確導入，以便注册所有模型到管理後臺。
+確保 `admin.py` 被正確匯入，以便註冊所有模型到管理後台。
 
 ```python
 # apps.py
@@ -1508,62 +1540,62 @@ from api.models.register import ModelRegister
 class ApiConfig(AppConfig):  
     default_auto_field = 'django.db.models.BigAutoField'  
     name = 'api'  
-    verbose_name = "主程序"  
+    verbose_name = "主程式"  
   
     def ready(self):  
         ModelRegister.load_all_characters()  
         ModelRegister.check_registered()
 ```
 
-**管理界面訪問流程**:
+**管理介面存取流程**:
 ```mermaid
 flowchart TD
-    A[訪問/admin] --> B[Django Admin登錄]
+    A[存取/admin] --> B[Django Admin登入]
     B --> C{用戶權限驗證}
-    C -- 管理員 --> D[顯示管理界面]
+    C -- 管理員 --> D[顯示管理介面]
     C -- 非管理員 --> E[權限錯誤]
     
     D --> F[左側導航欄]
-    F --> G[角色模板模型]
+    F --> G[角色範本模型]
     F --> H[容器模型]
     F --> I[InstanceHashTable]
     F --> J[Token模型]
     
-    subgraph "標簽模型"
-        K[通過搜索/篩選訪問]
+    subgraph "標籤模型"
+        K[透過搜尋/篩選存取]
     end
     
-    G --> L[列表視圖]
-    L --> M[創建/編輯/删除]
+    G --> L[清單視圖]
+    L --> M[建立/編輯/刪除]
     
-    H --> N[列表視圖]
-    N --> O[創建/編輯/删除]
+    H --> N[清單視圖]
+    N --> O[建立/編輯/刪除]
     
-    M --> P[級聯删除驗證]
+    M --> P[級聯刪除驗證]
     O --> P
 ```
 
-## 5. 事件系統與觸發器集成
+## 5. 事件系統與觸發器整合
 
-詳細的實現： 8. 核心模塊詳解：事件引擎 (EventBus)
+詳細的實現： [[#7. 核心模組詳解：事件引擎 (EventBus)]]
 ### 5.1 工作原理
-1.  **定義觸發器**: 在自定義標簽模型類中，使用 `@LabelTriggerManager.register_trigger` 裝飾器來裝飾 `trigger_0` 和 `trigger_1` 方法，幷指定其監聽模式、監聽的事件以及觸發後要發布的事件。
-2.  **注册觸發器**: 項目啓動時，`LabelTriggerManager` 會掃描所有標簽類，將其觸發器函數信息記錄到全域字典 `trigger_hash_tabel` 中。
-3.  **安裝實例**: 當用戶啓動事件引擎（通過調用 `StartEventBusEngine` API）時，系統會遍歷該用戶的所有角色、容器、標簽，幷將每個標簽**實例**安裝到 `trigger_hash_tabel` 中對應類名的 `"instance"` 字段下。
-4.  **安裝事件總綫**: 緊接著，`LabelTriggerManager.install_to_eventbus` 被調用。它會遍歷 `trigger_hash_tabel`，根據第一步注册的監聽信息，將每個觸發器（其函數已被包裝爲一個能操作特定實例的Lambda）注册到該用戶的 `EventBus` 實例中。
-5.  **事件流**: 此後，任何代碼通過 `EventBus.publish("某事件")` 發布事件時，相關監聽器（即標簽的觸發器）就會被觸發，從而改變標簽的數據。
+1.  **定義觸發器**: 在自訂標籤模型類別中，使用 `@LabelTriggerManager.register_trigger` 裝飾器來裝飾 `trigger_0` 和 `trigger_1` 方法，並指定其監聽模式、監聽的事件以及觸發後要發布的事件。
+2.  **註冊觸發器**: 項目啟動時，`LabelTriggerManager` 會掃描所有標籤類別，將其觸發器函數資訊記錄到全域字典 `trigger_hash_tabel` 中。
+3.  **安裝實例**: 當使用者啟動事件引擎（透過呼叫 `StartEventBusEngine` API）時，系統會遍歷該用戶的所有角色、容器、標籤，並將每個標籤**實例**安裝到 `trigger_hash_tabel` 中對應類別名稱的 `"instance"` 欄位下。
+4.  **安裝事件匯流排**: 緊接著，`LabelTriggerManager.install_to_eventbus` 被呼叫。它會遍歷 `trigger_hash_tabel`，根據第一步註冊的監聽資訊，將每個觸發器（其函數已被包裝為一個能操作特定實例的Lambda）註冊到該用戶的 `EventBus` 實例中。
+5.  **事件流**: 此後，任何程式碼透過 `EventBus.publish("某事件")` 發布事件時，相關監聽器（即標籤的觸發器）就會被觸發，從而改變標籤的資料。
 
 #### 5.1.1 事件引擎工作流程圖
 ```mermaid
 flowchart TD
-    A[事件發布<br>EventBus.publish] --> B[事件進入隊列]
+    A[事件發布<br>EventBus.publish] --> B[事件進入佇列]
     B --> C{處理事件}
     C --> D[立即觸發器]
-    C --> E[延遲觸發器<br>加入延遲隊列]
+    C --> E[延遲觸發器<br>加入延遲佇列]
     C --> F[聯合觸發器<br>檢查條件]
     C --> G[模式觸發器<br>匹配模式]
     
-    D --> H[執行回調函數]
+    D --> H[執行回呼函數]
     E --> I[等待指定事件數]
     I --> H
     F --> J{所有條件滿足?}
@@ -1577,7 +1609,7 @@ flowchart TD
 
 
 
-### 5.2 如何定義一個帶觸發器的標簽
+### 5.2 如何定義一個帶觸發器的標籤
 
 ```python
 # labels/models/my_labels.py
@@ -1588,28 +1620,28 @@ from labels.models.label_trigger_manager import LabelTriggerManager
 from api.event.event_engine import EventBus
 
 class MaxDrawdownLabel(BaseLabel):
-    # 重寫 label_value 爲浮點數類型，這才是"一標簽一模型"的體現
+    # 重寫 label_value 為浮點數類型，這才是「一標籤一模型」的體現
     label_value = models.FloatField(default=0.0, verbose_name='最大回撤')
     label_name = "最大回撤" # 也可以固定死
 
     @LabelTriggerManager.register_trigger(
         listener_type=EventBus.IMMEDIATE,
-        listen_event="market_crash", # 監聽"市場暴跌"事件
-        publish="risk_alert"    # 觸發後發布"風險警報"事件
+        listen_event="market_crash", # 監聽「市場暴跌」事件
+        publish="risk_alert"    # 觸發後發布「風險警報」事件
     )
     def trigger_0(self):
         """市場暴跌，更新最大回撤"""
-        # 假設這裏有一些計算邏輯
+        # 假設這裡有一些計算邏輯
         new_drawdown = calculate_current_drawdown()
         if new_drawdown > self.label_value:
             self.label_value = new_drawdown
             self.save()
-            print(f"{self.get_name()} 更新爲: {self.get_value()}")
+            print(f"{self.get_name()} 更新為: {self.get_value()}")
 
     @LabelTriggerManager.register_trigger(
         listener_type=EventBus.IMMEDIATE,
-        listen_event="reset_drawdown", # 監聽"重置回撤"事件
-        publish="drawdown_reset"  # 觸發後發布"回撤重置"事件
+        listen_event="reset_drawdown", # 監聽「重置回撤」事件
+        publish="drawdown_reset"  # 觸發後發布「回撤重置」事件
     )
     def trigger_1(self):
         """重置最大回撤"""
@@ -1624,28 +1656,28 @@ class MaxDrawdownLabel(BaseLabel):
 *   `listen_event`: 指定要監聽的事件名稱。
 *   `publish`: （可選）指定該觸發器執行成功後要發布的新事件名稱，從而形成事件鏈。
 
-### 5.2.1 觸發器注册與安裝序列圖
+### 5.2.1 觸發器註冊與安裝序列圖
 ```mermaid
 sequenceDiagram
     participant Developer
-    participant LabelModel as 標簽模型類
+    participant LabelModel as 標籤模型類別
     participant TriggerManager as LabelTriggerManager
     participant EventBusInst as EventBus實例
     participant APIView as StartEventBusEngine
     
     Note over Developer: 開發階段
     Developer->>LabelModel: 使用@register_trigger裝飾器
-    LabelModel->>TriggerManager: 注册觸發器信息
+    LabelModel->>TriggerManager: 註冊觸發器資訊
     
-    Note over APIView: 運行時階段
-    APIView->>TriggerManager: install_instance(標簽實例)
-    TriggerManager->>TriggerManager: 更新trigger_hash_tabel中的instance字段
+    Note over APIView: 執行時階段
+    APIView->>TriggerManager: install_instance(標籤實例)
+    TriggerManager->>TriggerManager: 更新trigger_hash_tabel中的instance欄位
     
     APIView->>TriggerManager: install_to_eventbus(eventBus)
     
-    loop 遍歷所有注册的觸發器
-        TriggerManager->>EventBusInst: 添加監聽器(根據觸發器類型)
-        EventBusInst-->>TriggerManager: 確認添加
+    loop 遍歷所有註冊的觸發器
+        TriggerManager->>EventBusInst: 新增監聽器(根據觸發器類型)
+        EventBusInst-->>TriggerManager: 確認新增
     end
     
     TriggerManager-->>APIView: 安裝完成
@@ -1658,8 +1690,8 @@ sequenceDiagram
     participant User
     participant API
     participant EventBus
-    participant LabelA as 標簽A(投資組合價值)
-    participant LabelB as 標簽B(風險等級)
+    participant LabelA as 標籤A(投資組合價值)
+    participant LabelB as 標籤B(風險等級)
     
     User->>API: 發布事件(市場波動)
     API->>EventBus: publish("market_volatility")
@@ -1677,15 +1709,15 @@ sequenceDiagram
     API-->>User: 操作成功響應
 ```
 
-## 6. 使用流程 (How-To)
+## 6. 使用與外掛開發
 
-### 6.1 系統初始化與啓動
+### 6.1 系統初始化與啟動
 
-在項目啓動時，需要確保模型注册系統正確工作：
+在項目啟動時，需要確保模型註冊系統正確工作：
 
-1.  **模型注册**: 在Django的 `apps.py` 或項目初始化代碼中調用 `ModelRegister.load_all_characters()`。
-2.  **注册檢查**: 調用 `ModelRegister.check_registered()` 確保至少有一個角色、容器和標簽被注册。
-3.  **Admin配置**: 確保 `admin.py` 被正確導入，以便注册所有模型到管理後臺。
+1.  **模型註冊**: 在Django的 `apps.py` 或項目初始化程式碼中呼叫 `ModelRegister.load_all_characters()`。
+2.  **註冊檢查**: 呼叫 `ModelRegister.check_registered()` 確保至少有一個角色、容器和標籤被註冊。
+3.  **Admin配置**: 確保 `admin.py` 被正確匯入，以便註冊所有模型到管理後台。
 
 ```python
 # apps.py
@@ -1697,28 +1729,48 @@ from api.models.register import ModelRegister
 class ApiConfig(AppConfig):  
     default_auto_field = 'django.db.models.BigAutoField'  
     name = 'api'  
-    verbose_name = "主程序"  
+    verbose_name = "主程式"  
   
     def ready(self):  
         ModelRegister.load_all_characters()  
         ModelRegister.check_registered()
 ```
 
-### 6.2 管理後臺使用
+### 6.2 管理後台使用
 
-1.  **訪問管理後臺**: 通過 `/admin` URL訪問Django管理界面。
+1.  **存取管理後台**: 透過 `/admin` URL存取Django管理介面。
 2.  **管理模型**: 
-    *   角色模板和容器模型會顯示在左側導航欄中。
-    *   標簽模型不會顯示在導航欄，但可以通過URL直接訪問或通過關聯的容器進行管理。
-3.  **數據操作**: 
-    *   可以創建、編輯、删除角色、容器和標簽實例。
-    *   删除操作會自動處理級聯關係（如删除容器會删除關聯的標簽）。
+    *   角色範本和容器模型會顯示在左側導航欄中。
+    *   標籤模型不會顯示在導航欄，但可以透過URL直接存取或透過關聯的容器進行管理。
+3.  **資料操作**: 
+    *   可以建立、編輯、刪除角色、容器和標籤實例。
+    *   刪除操作會自動處理級聯關係（如刪除容器會刪除關聯的標籤）。
 
-### 6.3 創建一個全新的角色類型
-假設我們要創建一個名爲 `ArbitrageStrategy` 的角色。
+### 6.3 開發以及匯入外掛
 
-**1. 定義標簽模型**
-創建 `labels/models/game_labels.py`：
+開發新策略監控項目，本質在本項目的對應app下建立新模型，並遵循上述 `BaseCharacter`, `BaseContainer`, `BaseLabel` 的繼承體系定義一套新的模型。
+
+**步驟**:
+1.  **規劃**: 確定新角色需要哪些資料（標籤），如何分組（容器）。
+2.  **建立模型**:
+    *   在 `labels/models/` 下建立 `your_plugin_labels.py`，定義所有標籤模型。
+    *   在 `containers/models/` 下建立 `your_plugin_containers.py`，定義容器模型並使用 `ContainerLabelField` 關聯上一步的標籤。
+    *   在 `characters/models/` 下建立 `your_plugin_character.py`，定義角色範本模型並使用 `CharacterContainerField` 關聯上一步的容器。
+3.  **實現邏輯**:
+    *   在標籤模型中重寫 `trigger_0` 和 `trigger_1` 方法，並使用 `LabelTriggerManager.register_trigger` 裝飾器定義其事件行為。
+4.  **註冊遷移**: 確保新模型檔案被正確匯入，然後執行 `makemigrations` 和 `migrate`。
+5.  **提供API** (可選): 如果需要，建立新的API視圖來處理這個新角色類型的特定操作（如釋放技能、更換裝備）。
+
+**注意事項**:
+*   模型的定義和遷移是外掛化的核心。
+*   充分理解 `used_in_container` 和 `used_in_character` 欄位的維護機制，避免在自訂的 `save` 或 `delete` 邏輯中破壞它。
+*   觸發器裝飾器的參數配置是關鍵，需要清晰理解事件匯流排的工作模式。
+
+**實操**：
+假設我們要建立一個名為 `ArbitrageStrategy` 的角色。
+
+**1. 定義標籤模型**
+建立 `labels/models/quant_labels.py`：
 ```python
 from django.db import models
 from labels.models.base_label import BaseLabel
@@ -1737,7 +1789,7 @@ class SharpeRatioLabel(BaseLabel):
 ```
 
 **2. 定義容器模型**
-創建 `containers/models/game_containers.py`：
+建立 `containers/models/quant_label_containers.py`：
 ```python
 from django.db import models
 from containers.models.base_container import BaseContainer
@@ -1745,7 +1797,7 @@ from containers.models.container_label_field import ContainerLabelField
 from labels.models.quant_labels import SymbolPairLabel, CapitalLabel, SharpeRatioLabel
 
 class BasicConfigContainer(BaseContainer):
-    # 關聯標簽模型
+    # 關聯標籤模型
     symbol_pair = ContainerLabelField(to=SymbolPairLabel)
     capital = ContainerLabelField(to=CapitalLabel)
 
@@ -1754,135 +1806,39 @@ class PerformanceContainer(BaseContainer):
 ```
 
 **3. 定義角色模型**
-創建 `characters/models/game_character.py`：
+建立 `characters/models/some_strategy.py`：
 ```python
 from django.db import models
 from strategies.models.base_strategy import BaseStrategy
-from strategies.models.strategy_container_field import StrategyContainerField
-from containers.models.quant_containers import BasicConfigContainer, PerformanceContainer
+from characters.models.character_container_field import CharacterContainerField
+from containers.models.quant_label_containers import BasicConfigContainer, PerformanceContainer
 
 class ArbitrageStrategy(BaseStrategy):
     # 關聯容器模型
-    basic_config = StrategyContainerField(to=BasicConfigContainer)
-    performance = StrategyContainerField(to=PerformanceContainer)
+    basic_config = CharacterContainerField(to=BasicConfigContainer)
+    performance = CharacterContainerField(to=PerformanceContainer)
 ```
 
-**4. 更新數據庫**
-運行Django數據庫遷移命令，創建新定義的模型所對應的數據表。
+**4. 更新資料庫**
+執行Django資料庫遷移命令，建立新定義的模型所對應的資料表。
 ```bash
 python manage.py makemigrations
 python manage.py migrate
 ```
 
-**5. （可選）爲標簽添加觸發器**
-編輯 `game_labels.py`，如前文所述，爲 `HealthLabel` 等添加 `@LabelTriggerManager.register_trigger` 裝飾的邏輯。
+**5. （可選）為標籤新增觸發器**
+編輯 `quant_labels.py`，如前文所述，為 `CapitalLabel` 等新增 `@LabelTriggerManager.register_trigger` 裝飾的邏輯。
 
-#### 6.3.1 創建新角色類型流程圖
-```mermaid
-flowchart TD
-    A[創建新角色類型] --> B[定義標簽模型]
-    A --> C[定義容器模型]
-    A --> D[定義角色模板模型]
-    
-    B --> E[重寫label_value字段]
-    B --> F[添加觸發器裝飾器]
-    
-    C --> G[使用ContainerLabelField關聯標簽]
-    
-    D --> H[使用CharacterContainerField關聯容器]
-    
-    E --> I[數據庫遷移]
-    F --> I
-    G --> I
-    H --> I
-    
-    I --> J[創建API視圖]
-    J --> K[測試]
-```
-
-### 6.4 啓動事件引擎
-前端在用戶登錄後或需要啓動交互功能時，應調用 `/api/eventbus/start/` (`StartEventBusEngine` 視圖)。這個視圖會：
-1.  找到或創建對應用戶的 `EventBus` 實例。
-2.  遍歷該用戶的所有角色、容器、標簽。
-3.  調用 `LabelTriggerManager.install_instance` 爲每個標簽實例配置觸發器。
-4.  調用 `LabelTriggerManager.install_to_eventbus` 將所有配置好的觸發器注册到事件總綫上。
-
-此後，事件驅動系統即可正常工作。
-
-### 6.5 系統啓動與事件引擎初始化圖
-```mermaid
-sequenceDiagram
-    participant Frontend as 前端(React)
-    participant Backend as 後端(Django)
-    participant EventBusPool as EventBusObjectPool
-    participant TriggerManager as LabelTriggerManager
-    participant DB as 數據庫
-    
-    Frontend->>Backend: 用戶登錄
-    Backend-->>Frontend: 認證成功
-    
-    Frontend->>Backend: 調用StartEventBusEngine API
-    
-    Backend->>EventBusPool: get_for_user(user_id)
-    EventBusPool-->>Backend: 返回EventBus實例
-    
-    Backend->>DB: 查詢用戶的所有角色
-    DB-->>Backend: 返回角色列表
-    
-    loop 遍歷所有角色
-        Backend->>DB: 查詢角色的所有容器
-        DB-->>Backend: 返回容器列表
-        
-        loop 遍歷所有容器
-            Backend->>DB: 查詢容器的所有標簽
-            DB-->>Backend: 返回標簽列表
-            
-            loop 遍歷所有標簽
-                Backend->>TriggerManager: install_instance(標簽實例)
-                TriggerManager-->>Backend: 確認安裝
-            end
-        end
-    end
-    
-    Backend->>TriggerManager: install_to_eventbus(EventBus實例)
-    TriggerManager-->>Backend: 安裝完成
-    
-    Backend-->>Frontend: 事件引擎啓動成功
-```
----
-
-## 7. 插件開發指南
-
-開發新策略監控項目，本質就是創建新的Django App（或在本項目的對應app下創建新模塊），幷遵循上述 `BaseCharacter`, `BaseContainer`, `BaseLabel` 的繼承體系定義一套新的模型。
-
-**步驟**:
-1.  **規劃**: 確定新角色需要哪些數據（標簽），如何分組（容器）。
-2.  **創建模型**:
-    *   在 `labels/models/` 下創建 `your_plugin_labels.py`，定義所有標簽模型。
-    *   在 `containers/models/` 下創建 `your_plugin_containers.py`，定義容器模型幷使用 `ContainerLabelField` 關聯上一步的標簽。
-    *   在 `characters/models/` 下創建 `your_plugin_character.py`，定義角色模板模型幷使用 `CharacterContainerField` 關聯上一步的容器。
-3.  **實現邏輯**:
-    *   在標簽模型中重寫 `trigger_0` 和 `trigger_1` 方法，幷使用 `LabelTriggerManager.register_trigger` 裝飾器定義其事件行爲。
-4.  **注册遷移**: 確保新模型文件被正確導入，然後運行 `makemigrations` 和 `migrate`。
-5.  **提供API** (可選): 如果需要，創建新的API視圖來處理這個新角色類型的特定操作（如釋放技能、更換裝備）。
-
-**注意事項**:
-*   模型的定義和遷移是插件化的核心。
-*   充分理解 `used_in_container` 和 `used_in_character` 字段的維護機制，避免在自定義的 `save` 或 `delete` 邏輯中破壞它。
-*   觸發器裝飾器的參數配置是關鍵，需要清晰理解事件總綫的工作模式。
-
-好的，根據您提供的詳細代碼和描述，我將爲您撰寫事件引擎 (`EventBus`) 和標簽觸發器管理器 (`LabelTriggerManager`) 這兩個核心模塊的開發文檔。這些文檔將集成到您提供的初始文檔結構中。
-
-### 7.1 插件開發組件關係圖
+#### 6.3.1 外掛的模型結構圖
 ```mermaid
 graph TB
-    subgraph "新角色插件"
-        NewCharacter[新角色模板模型]
+    subgraph "新角色外掛"
+        NewCharacter[新角色範本模型]
         NewContainer1[新容器模型1]
         NewContainer2[新容器模型2]
-        NewLabel1[新標簽模型1]
-        NewLabel2[新標簽模型2]
-        NewLabel3[新標簽模型3]
+        NewLabel1[新標籤模型1]
+        NewLabel2[新標籤模型2]
+        NewLabel3[新標籤模型3]
         
         NewCharacter --> NewContainer1
         NewCharacter --> NewContainer2
@@ -1904,45 +1860,117 @@ graph TB
     NewLabel2 --> BaseLabel
     NewLabel3 --> BaseLabel
 ```
+
+#### 6.3.2 建立新角色類型流程圖
+```mermaid
+flowchart TD
+    A[建立新角色類型] --> B[定義標籤模型]
+    A --> C[定義容器模型]
+    A --> D[定義角色範本模型]
+    
+    B --> E[重寫label_value欄位]
+    B --> F[新增觸發器裝飾器]
+    
+    C --> G[使用ContainerLabelField關聯標籤]
+    
+    D --> H[使用CharacterContainerField關聯容器]
+    
+    E --> I[資料庫遷移]
+    F --> I
+    G --> I
+    H --> I
+    
+    I --> J[建立API視圖]
+    J --> K[測試]
+```
+
+### 6.4 啟動事件引擎
+前端在使用者登入後或需要啟動互動功能時，應呼叫 `/api/eventbus/start/` (`StartEventBusEngine` 視圖)。這個視圖會：
+1.  找到或建立對應用戶的 `EventBus` 實例。
+2.  遍歷該用戶的所有角色、容器、標籤。
+3.  呼叫 `LabelTriggerManager.install_instance` 為每個標籤實例配置觸發器。
+4.  呼叫 `LabelTriggerManager.install_to_eventbus` 將所有配置好的觸發器註冊到事件匯流排上。
+
+此後，事件驅動系統即可正常工作。
+
+### 6.5 系統啟動與事件引擎初始化圖
+```mermaid
+sequenceDiagram
+    participant Frontend as 前端(React)
+    participant Backend as 後端(Django)
+    participant EventBusPool as EventBusObjectPool
+    participant TriggerManager as LabelTriggerManager
+    participant DB as 資料庫
+    
+    Frontend->>Backend: 用戶登入
+    Backend-->>Frontend: 認證成功
+    
+    Frontend->>Backend: 呼叫StartEventBusEngine API
+    
+    Backend->>EventBusPool: get_for_user(user_id)
+    EventBusPool-->>Backend: 傳回EventBus實例
+    
+    Backend->>DB: 查詢用戶的所有角色
+    DB-->>Backend: 傳回角色清單
+    
+    loop 遍歷所有角色
+        Backend->>DB: 查詢角色的所有容器
+        DB-->>Backend: 傳回容器清單
+        
+        loop 遍歷所有容器
+            Backend->>DB: 查詢容器的所有標籤
+            DB-->>Backend: 傳回標籤清單
+            
+            loop 遍歷所有標籤
+                Backend->>TriggerManager: install_instance(標籤實例)
+                TriggerManager-->>Backend: 確認安裝
+            end
+        end
+    end
+    
+    Backend->>TriggerManager: install_to_eventbus(EventBus實例)
+    TriggerManager-->>Backend: 安裝完成
+    
+    Backend-->>Frontend: 事件引擎啟動成功
+```
 ---
 
-
-## 8. 核心模塊詳解：事件引擎 (EventBus)
+## 7. 核心模組詳解：事件引擎 (EventBus)
 
 **位置**: `api/event/event_engine.py`
-**職責**: 提供一個强大的、基于隊列的事件驅動架構核心。它負責事件的發布、存儲、調度，幷根據預定義的監聽模式（Immediate, Delayed, Joint, Pattern）觸發相應的回調函數。每個用戶擁有獨立的事件總綫實例，通過 `EventBusObjectPool` 進行管理，確保了用戶間的事件隔離。
+**職責**: 提供一個強大的、基於佇列的事件驅動架構核心。它負責事件的發布、儲存、排程，並根據預定義的監聽模式（Immediate, Delayed, Joint, Pattern）觸發相應的回呼函數。每個用戶擁有獨立的事件匯流排實例，透過 `EventBusObjectPool` 進行管理，確保了用戶間的事件隔離。
 
-### 8.1 核心類與數據結構
+### 7.1 核心類別與資料結構
 
-**`EventBus` 類**:
+**`EventBus` 類別**:
 
-*   **`is_install` (Boolean)**: 標志位，指示該事件總綫實例是否已被 `LabelTriggerManager.install_to_eventbus` 方法安裝和配置過，防止重複安裝。
-*   **`event_count` (Integer)**: 全域事件計數器。從 0 開始遞增，每次處理一個新事件時加 1。用于實現延遲觸發。
-*   **`event_bus` (Queue)**: 一個先進先出 (FIFO) 的事件隊列，用于存儲所有待處理的事件字符串。`maxsize=1000` 防止內存溢出。
-*   **`immediate_listeners` (DefaultDict[str, List[Callable]])**: 立即監聽器字典。鍵是事件名 (`source`)，值是一個回調函數列表。當對應事件被發布時，列表中的所有回調會被**立即同步執行**。
-*   **`delayed_tasks` (List[Tuple[int, Callable]])**: 延遲任務**最小堆**。每個元素是一個元組 `(trigger_at, callback)`，其中 `trigger_at` 是一個絕對的事件計數（`event_count + delay`）。堆總是保證 `trigger_at` 最小的任務在堆頂。
-*   **`joint_conditions` (List[JointCondition])**: 聯合條件監聽器列表。
-*   **`pattern_matchers` (List[PatternMatcher])**: 模式匹配監聽器列表。
+*   **`is_install` (Boolean)**: 標誌位，指示該事件匯流排實例是否已被 `LabelTriggerManager.install_to_eventbus` 方法安裝和配置過，防止重複安裝。
+*   **`event_count` (Integer)**: 全域事件計數器。從 0 開始遞增，每次處理一個新事件時加 1。用於實現延遲觸發。
+*   **`event_bus` (Queue)**: 一個先進先出 (FIFO) 的事件佇列，用於儲存所有待處理的事件字串。`maxsize=1000` 防止記憶體溢出。
+*   **`immediate_listeners` (DefaultDict[str, List[Callable]])**: 立即監聽器字典。鍵是事件名 (`source`)，值是一個回呼函數清單。當對應事件被發布時，清單中的所有回呼會被**立即同步執行**。
+*   **`delayed_tasks` (List[Tuple[int, Callable]])**: 延遲任務**最小堆疊**。每個元素是一個元組 `(trigger_at, callback)`，其中 `trigger_at` 是一個絕對的事件計數（`event_count + delay`）。堆疊總是保證 `trigger_at` 最小的任務在堆疊頂。
+*   **`joint_conditions` (List[JointCondition])**: 聯合條件監聽器清單。
+*   **`pattern_matchers` (List[PatternMatcher])**: 模式匹配監聽器清單。
 
-**`JointCondition` 類**:
-用于實現**聯合觸發**（所有指定事件都發生，順序無關）。
+**`JointCondition` 類別**:
+用於實現**聯合觸發**（所有指定事件都發生，順序無關）。
 *   **`required` (Set[str])**: 需要監聽的所有事件的集合。
 *   **`occurred` (Set[str])**: 已經發生的事件的集合。
-*   **`callback` (Callable)**: 當 `occurred == required` 時要執行的回調函數。
-*   **`on_event(event)`**: 處理新事件。如果事件在 `required` 中且未被記錄，則加入 `occurred`。如果所有事件都已發生，則觸發 `callback` 幷重置狀態。
+*   **`callback` (Callable)**: 當 `occurred == required` 時要執行的回呼函數。
+*   **`on_event(event)`**: 處理新事件。如果事件在 `required` 中且未被記錄，則加入 `occurred`。如果所有事件都已發生，則觸發 `callback` 並重置狀態。
 *   **`reset()`**: 重置 `occurred` 集合。
 
-**`PatternMatcher` 類**:
-用于實現**模式觸發**（事件序列匹配特定模式，支持 `*` 通配符）。
-*   **`pattern` (List[str])**: 要匹配的事件模式列表，如 `["A", "*", "B"]`。
-*   **`state` (Integer)**: 當前在模式序列中的匹配位置（狀態機的狀態）。
-*   **`callback` (Callable)**: 當模式完全匹配時要執行的回調函數。
-*   **`on_event(event)`**: 使用狀態機邏輯處理新事件，嘗試推進匹配狀態。如果完全匹配 (`state == len(pattern)`)，則觸發 `callback` 幷重置狀態。如果匹配失敗，會嘗試從當前事件重新開始匹配。
+**`PatternMatcher` 類別**:
+用於實現**模式觸發**（事件序列匹配特定模式，支援 `*` 萬用字元）。
+*   **`pattern` (List[str])**: 要匹配的事件模式清單，如 `["A", "*", "B"]`。
+*   **`state` (Integer)**: 目前在模式序列中的匹配位置（狀態機的狀態）。
+*   **`callback` (Callable)**: 當模式完全匹配時要執行的回呼函數。
+*   **`on_event(event)`**: 使用狀態機邏輯處理新事件，嘗試推進匹配狀態。如果完全匹配 (`state == len(pattern)`)，則觸發 `callback` 並重置狀態。如果匹配失敗，會嘗試從目前事件重新開始匹配。
 *   **`reset()`**: 重置狀態機 (`state = 0`)。
 
-**事件引擎 (EventBus) 內部數據結構與事件流**
+**事件引擎 (EventBus) 內部資料結構與事件流**
 
-**描述**: 此圖展示了 EventBus 的核心數據結構和處理一個事件的內部流程。
+**描述**: 此圖展示了 EventBus 的核心資料結構和處理一個事件的內部流程。
 
 ```mermaid
 flowchart TD
@@ -1967,83 +1995,163 @@ flowchart TD
     M --> N[Event Processing Done]
 ```
 
-### 8.2 監聽模式 (Listener Types)
+### 7.2 監聽模式 (Listener Types)
 
 1.  **`IMMEDIATE` (立即觸發)**:
-    *   **行爲**: 監聽特定事件 `source`。當 `source` 事件被處理時，所有關聯的回調函數被立即調用。
-    *   **應用**: 最常用，用于對事件做出即時反應，如受傷扣血、獲得經驗。
+    *   **行為**: 監聽特定事件 `source`。當 `source` 事件被處理時，所有關聯的回呼函數被立即呼叫。
+    *   **應用**: 最常用，用於對事件做出即時反應。
 
 2.  **`DELAY` (延遲觸發)**:
-    *   **行爲**: 監聽特定事件 `source`。當 `source` 事件被處理時，幷不立即執行回調，而是計算一個未來的觸發點 `trigger_at = current_event_count + delay`，幷將任務放入最小堆。系統會在處理每個事件後檢查堆頂，如果 `trigger_at <= current_event_count`，則執行回調。
-    *   **實現**: 借用了立即觸發器。當 `source` 事件發生時，一個包裝函數(`delayed_callback_wrapper`)被立即調用，它的作用僅僅是將真正的回調任務推入延遲堆。
-    *   **應用**: 實現需要等待一段時間（以事件數爲單位）後才生效的效果，如中毒後的持續傷害、buff/debuff 的持續時間。
+    *   **行為**: 監聽特定事件 `source`。當 `source` 事件被處理時，並不立即執行回呼，而是計算一個未來的觸發點 `trigger_at = current_event_count + delay`，並將任務放入最小堆疊。系統會在處理每個事件後檢查堆疊頂，如果 `trigger_at <= current_event_count`，則執行回呼。
+    *   **實現**: 借用了立即觸發器。當 `source` 事件發生時，一個包裝函數(`delayed_callback_wrapper`)被立即呼叫，它的作用僅僅是將真正的回呼任務推入延遲堆疊。
+    *   **應用**: 實現需要等待一段時間（以事件數為單位）後才生效的效果，如中毒後的持續傷害、buff/debuff 的持續時間。
 
 3.  **`JOINT` (聯合觸發)**:
-    *   **行爲**: 監聽一組事件 `sources`。要求集合中的所有事件**都至少發生一次**（順序無關）。當最後一個缺失的事件發生時，回調被觸發。觸發後條件重置，可以再次觸發。
+    *   **行為**: 監聽一組事件 `sources`。要求集合中的所有事件**都至少發生一次**（順序無關）。當最後一個缺失的事件發生時，回呼被觸發。觸發後條件重置，可以再次觸發。
     *   **應用**: 完成一個需要多個步驟的任務，如收集多個道具後合成、同時按下多個鍵發動技能。
 
 4.  **`PATTERN` (模式觸發)**:
-    *   **行爲**: 監聽一個事件序列 `pattern`。要求事件**按順序**匹配給定的模式，`*` 可以匹配任意一個事件。匹配成功後觸發回調，然後重置狀態機。
-    *   **應用**: 實現連招系統、解鎖特定成就（需要按順序執行操作）、解析命令行指令。
+    *   **行為**: 監聽一個事件序列 `pattern`。要求事件**按順序**匹配給定的模式，`*` 可以匹配任意一個事件。匹配成功後觸發回呼，然後重置狀態機。
+    *   **應用**: 實現連招系統、解鎖特定成就（需要按順序執行操作）、解析命令列指令。
 
-### 8.3 核心方法流程
+### 7.3 核心方法流程
 
 **`publish(event: str)`**:
-1.  將事件字符串 `event` 放入 `event_bus` 隊列。
-2.  記錄日志。
+1.  將事件字串 `event` 放入 `event_bus` 佇列。
+2.  記錄日誌。
 
 **`process_one_step()`**: **事件處理的核心循環單元**。
-1.  檢查隊列是否爲空，空則返回 `True`（處理完成）。
-2.  檢查隊列是否已滿，滿則返回 `False`（錯誤）。
+1.  檢查佇列是否為空，空則傳回 `True`（處理完成）。
+2.  檢查佇列是否已滿，滿則傳回 `False`（錯誤）。
 3.  `event_count++`。
-4.  從隊列頭 `get()` 一個事件。
-5.  **立即觸發**: 在 `immediate_listeners` 中查找該事件對應的回調列表，幷順序執行所有回調。
-6.  **延遲觸發**: 檢查 `delayed_tasks` 堆頂，循環彈出幷執行所有 `trigger_at <= event_count` 的任務。
-7.  **聯合觸發**: 遍歷 `joint_conditions`，對每個條件調用 `condition.on_event(current_event)`。
-8.  **模式觸發**: 遍歷 `pattern_matchers`，對每個匹配器調用 `matcher.on_event(current_event)`。
-9.  返回 `False`（表示還有更多事件待處理）。
+4.  從佇列頭 `get()` 一個事件。
+5.  **立即觸發**: 在 `immediate_listeners` 中查找該事件對應的回呼清單，並順序執行所有回呼。
+6.  **延遲觸發**: 檢查 `delayed_tasks` 堆疊頂，循環彈出並執行所有 `trigger_at <= event_count` 的任務。
+7.  **聯合觸發**: 遍歷 `joint_conditions`，對每個條件呼叫 `condition.on_event(current_event)`。
+8.  **模式觸發**: 遍歷 `pattern_matchers`，對每個匹配器呼叫 `matcher.on_event(current_event)`。
+9.  傳回 `False`（表示還有更多事件待處理）。
 
 **`process(maxStep=10000)`**:
-循環調用 `process_one_step()` 最多 `maxStep` 次，直到其返回 `True`（隊列空）或達到循環上限（防止死循環）。
+循環呼叫 `process_one_step()` 最多 `maxStep` 次，直到其傳回 `True`（佇列空）或達到循環上限（防止死循環）。
 
-**監聽器注册方法 (`add_*_listener`)**:
-這些方法用于編程式注册監聽器，通常由 `LabelTriggerManager` 在安裝階段調用。
+**監聽器註冊方法 (`add_*_listener`)**:
+這些方法用於程式設計式註冊監聽器，通常由 `LabelTriggerManager` 在安裝階段呼叫。
 *   `add_immediate_listener(source, callback)`
 *   `add_delayed_listener(source, delay, callback)`
 *   `add_joint_listener(sources, callback)`
 *   `add_pattern_listener(pattern, callback)`
 
 **裝飾器方法**:
-提供更聲明式的監聽器注册方式，可用于其他部分的代碼（不僅限于標簽觸發器）。
+提供更宣告式的監聽器註冊方式，可用於其他部分的程式碼（不僅限於標籤觸發器）。
 *   `@listen_immediately(source)`
 *   `@listen_delayed(source, delay)`
 *   `@listen_jointly(sources)`
 *   `@listen_pattern_matcher(pattern)`
-*   `@publish_event(event)`: **特殊裝飾器**。它裝飾一個函數，幷返回一個包裝函數。當被裝飾的函數執行後，包裝函數會自動發布指定的事件 `event`。這用于實現**事件鏈**（一個觸發器的執行會導致新事件的發布）。
+*   `@publish_event(event)`: **特殊裝飾器**。它裝飾一個函數，並傳回一個包裝函數。當被裝飾的函數執行後，包裝函數會自動發布指定的事件 `event`。這用於實現**事件鏈**（一個觸發器的執行會導致新事件的發布）。
 
-### 8.4 數據流
-1.  **事件産生**: 由 API 視圖（如 `LabelTriggerView`）、或其他後臺邏輯調用 `event_bus_instance.publish("some_event")`。
-2.  **事件入列**: 事件被加入 `event_bus` 隊列。
-3.  **事件處理**: `process_one_step()` 被循環調用（通常在API請求的上下文中，或由後台任務調用）。
-4.  **觸發回調**: 根據事件類型和監聽器配置，相應的回調函數被查找幷執行。這些回調函數是經過 `LabelTriggerManager` 包裝的，最終會調用特定標簽實例的 `trigger_0` 或 `trigger_1` 方法。
-5.  **狀態變更**: 標簽實例的數據在觸發器函數中被修改（`self.label_value -= 10`）幷保存（`self.save()`），從而改變了角色的狀態。
+### 7.4 資料流
+1.  **事件產生**: 由 API 視圖（如 `LabelTriggerView`）、或其他後台邏輯呼叫 `event_bus_instance.publish("some_event")`。
+2.  **事件入列**: 事件被加入 `event_bus` 佇列。
+3.  **事件處理**: `process_one_step()` 被循環呼叫（通常在API請求的上下文中，或由後台任務呼叫）。
+4.  **觸發回呼**: 根據事件類型和監聽器配置，相應的回呼函數被查找並執行。這些回呼函數是經過 `LabelTriggerManager` 包裝的，最終會呼叫特定標籤實例的 `trigger_0` 或 `trigger_1` 方法。
+5.  **狀態變更**: 標籤實例的資料在觸發器函數中被修改（`self.label_value -= 10`）並儲存（`self.save()`），從而改變了角色的狀態。
 6.  **事件鏈**: 如果觸發器裝飾了 `@publish_event`，其執行後會發布新事件，回到步驟1，形成鏈式反應。
 
 ---
 
-## 9. 核心模塊詳解：標簽觸發器管理器 (LabelTriggerManager)
+## 8. 核心模組詳解：事件引擎物件池
+
+### 8.1 核心欄位與方法
+
+位置：`/api/event/eventbus_object_pool.py`
+職責：`EventBusObjectPool` 是一個執行緒安全的事件匯流排物件池，用於為每個用戶提供獨立的事件匯流排實例。這種設計確保了不同用戶的事件流完全隔離，避免了用戶間的事件干擾，同時透過物件池模式提高了資源利用效率。
+
+
+**核心欄位**：
+- `eventBusObjectPool: Dict[str, 'EventBus']`：儲存用戶ID到事件匯流排實例的映射，格式為`{"用戶ID字串": EventBus實例, ...}`
+- `pool_lock: threading.RLock`：可重入鎖，用於保證多執行緒環境下對物件池的安全存取
+
+
+**核心方法**：
+`get_for_user(user_id: int) -> EventBus`： 取得指定用戶的事件匯流排實例。如果該用戶的事件匯流排不存在，則建立一個新實例並新增到物件池中。
+1. 將用戶ID轉換為字串格式
+2. 取得執行緒鎖，確保執行緒安全
+3. 檢查物件池中是否已存在該用戶的事件匯流排實例
+4. 如果不存在，建立新的事件匯流排實例並新增到物件池中
+5. 傳回該用戶的事件匯流排實例
+
+`exist(user_id: int) -> bool`：檢查指定用戶的事件匯流排實例是否已存在於物件池中
+1. 將用戶ID轉換為字串格式
+2. 記錄偵錯日誌，輸出目前物件池狀態
+3. 檢查物件池中是否包含該用戶的事件匯流排實例
+
+### 8.2 **模組互動**：
+`EventBusObjectPool` 與事件引擎(`EventBus`)和標籤觸發器管理器(`LabelTriggerManager`)緊密整合，工作流程如下：
+
+```mermaid
+sequenceDiagram
+    participant API
+    participant ObjectPool as EventBusObjectPool
+    participant EventBus
+    participant TriggerManager as LabelTriggerManager
+    
+    API->>ObjectPool: get_for_user(user_id)
+    ObjectPool->>ObjectPool: 檢查/建立EventBus實例
+    ObjectPool-->>API: 傳回EventBus實例
+    
+    API->>TriggerManager: install_instance(標籤實例)
+    TriggerManager->>TriggerManager: 更新觸發器雜湊表
+    
+    API->>TriggerManager: install_eventbus(EventBus實例)
+    TriggerManager->>EventBus: 註冊所有監聽器
+    
+    Note over EventBus: 事件匯流排準備就緒
+    API->>EventBus: publish(事件)
+    EventBus->>EventBus: 處理事件
+    EventBus->>相應標籤: 觸發回呼函數
+```
+
+
+在 `StartEventBusEngine` API視圖中，使用 `EventBusObjectPool` 取得用戶的事件匯流排實例：
+
+```python
+class StartEventBusEngine(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user_id = self.request.user.id
+        try:
+            # 從物件池取得用戶的事件匯流排實例
+            eventbus = EventBusObjectPool.get_for_user(user_id)
+            
+            # 安裝標籤實例和事件匯流排
+            for character_instance in self.__get_all_characters_from_user(user):
+                # ... 遍歷所有標籤實例
+                LabelTriggerManager.install_instance(label_instance)
+            
+            LabelTriggerManager.install_eventbus(eventbus)
+            
+            return Response({"message":f'event engine of user id {user_id} started'})
+        except Exception as e:
+            # 異常處理
+```
+
+
+___
+
+## 9. 核心模組詳解：標籤觸發器管理器 (LabelTriggerManager)
 
 **位置**: `labels/models/label_trigger_manager.py`
-**職責**: 作爲 `BaseLabel` 和 `EventBus` 之間的**橋梁**和**配置中心**。它提供了一個全域注册表，用于收集所有標簽類的觸發器信息，幷提供方法將這些靜態的觸發器函數“安裝”到動態的、用戶專屬的事件總綫實例上，幷將它們與具體的標簽實例綁定。
+**職責**: 作為 `BaseLabel` 和 `EventBus` 之間的**橋樑**和**配置中心**。它提供了一個全域註冊表，用於收集所有標籤類別的觸發器資訊，並提供方法將這些靜態的觸發器函數「安裝」到動態的、用戶專屬的事件匯流排實例上，並將它們與具體的標籤實例綁定。
 
-### 9.1 核心數據結構: `trigger_hash_tabel`
+### 9.1 核心資料結構: `trigger_hash_tabel`
 
-這是一個全域的、模塊級的字典，是管理器的核心。其結構設計精巧，包含了類級別的配置和實例引用。
+這是一個全域的、模組級別的字典，是管理器的核心。其結構包含了類別級別的配置和實例參考。
 
 ```python
 {
-  "HealthLabel": { # Key: 標簽類的名稱 (str)
-    "instance": health_label_instance_23, # Value: 該類的某個實例 (BaseLabel) | None
+  "HealthLabel": { # Key: 標籤類別的名稱 (str)
+    "instance": health_label_instance_23, # Value: 該類別的某個實例 (BaseLabel) | None
     "trigger_0": { # Key: 觸發器方法名 (str)
       "func": <function HealthLabel.trigger_0 at 0x...>, # Value: 原始的觸發器函數 (Callable)
       "listener_args": { # 該觸發器的監聽配置 (Dict)
@@ -2066,54 +2174,54 @@ flowchart TD
   }
 }
 ```
-**重要提示**: 由于 `trigger_hash_tabel` 是全域的，而 `"instance"` 字段在 `install_instance` 階段會被覆蓋爲*當前正在處理的那個用戶*的某個標簽實例，因此**絕對不能在業務邏輯中直接使用或依賴 `trigger_hash_tabel` 中 `"instance"` 的值**。它的存在只是爲了後續的 `install_to_eventbus` 步驟提供臨時存儲。
+**重要提示**: 由於 `trigger_hash_tabel` 是全域的，而 `"instance"` 欄位在 `install_instance` 階段會被覆蓋為*目前正在處理的那個用戶*的某個標籤實例，因此**絕對不能在業務邏輯中直接使用或依賴 `trigger_hash_tabel` 中 `"instance"` 的值**。它的存在只是為了後續的 `install_to_eventbus` 步驟提供臨時儲存。
 
 ### 9.2 核心方法流程
 
 **`register_trigger(listener_type, listen_event, publish, delay)`**:
-*   **這是一個裝飾器工廠方法**。它在項目啓動時，隨著標簽模型類的定義而被執行。
+*   **這是一個裝飾器工廠方法**。它在項目啟動時，隨著標籤模型類別的定義而被執行。
 *   **流程**:
     1.  接收監聽器參數。
-    2.  返回一個裝飾器函數。
+    2.  傳回一個裝飾器函數。
     3.  裝飾器函數接收被裝飾的 `trigger_0` 或 `trigger_1` 方法 (`func`)。
-    4.  通過分析 `func.__qualname__` 獲取其所屬的類名 (`func_class_name`) 和方法名 (`func_name`)。
-    5.  在 `trigger_hash_tabel` 中創建或更新對應類名和方法名的條目，將函數引用和監聽配置存儲起來。
-    6.  將該類的 `"instance"` 字段初始化爲 `None`。
-    7.  返回原始函數 `func`，不影響其正常行爲。
-*   **效果**: 項目啓動後，所有被裝飾過的觸發器函數及其元信息都被自動注册到了全域查找表中。
+    4.  透過分析 `func.__qualname__` 取得其所屬的類別名稱 (`func_class_name`) 和方法名 (`func_name`)。
+    5.  在 `trigger_hash_tabel` 中建立或更新對應類別名稱和方法名的條目，將函數參考和監聽配置儲存起來。
+    6.  將該類別的 `"instance"` 欄位初始化為 `None`。
+    7.  傳回原始函數 `func`，不影響其正常行為。
+*   **效果**: 項目啟動後，所有被裝飾過的觸發器函數及其元資訊都被自動註冊到了全域查找表中。
 
 **`install_instance(instance: BaseLabel)`**:
-*   **調用時機**: 由 `StartEventBusEngine` 視圖調用，遍歷用戶的所有標簽實例時。
+*   **呼叫時機**: 由 `StartEventBusEngine` 視圖呼叫，遍歷用戶的所有標籤實例時。
 *   **流程**:
-    1.  檢查實例是否是 `BaseLabel` 子類。
-    2.  獲取實例的類名。
-    3.  如果該類名在 `trigger_hash_tabel` 中存在，則用當前這個具體的**實例**覆蓋該類的 `"instance"` 字段。
-*   **目的**: 爲下一步安裝事件總綫時，爲每個觸發器函數提供一個具體的操作對象（`self`）。
+    1.  檢查實例是否是 `BaseLabel` 子類別。
+    2.  取得實例的類別名稱。
+    3.  如果該類別名稱在 `trigger_hash_tabel` 中存在，則用目前這個具體的**實例**覆蓋該類別的 `"instance"` 欄位。
+*   **目的**: 為下一步安裝事件匯流排時，為每個觸發器函數提供一個具體的操作物件（`self`）。
 
 **`install_to_eventbus(eventBus: EventBus)`**:
-*   **調用時機**: 緊接在 `install_instance` 循環之後，由 `StartEventBusEngine` 視圖調用。
+*   **呼叫時機**: 緊接在 `install_instance` 循環之後，由 `StartEventBusEngine` 視圖呼叫。
 *   **流程**:
-    1.  檢查事件總綫是否已被安裝過，避免重複安裝。
-    2.  遍歷 `trigger_hash_tabel` 中的每一個標簽類條目。
-    3.  獲取該條目下的 `"instance"`。此時它應該是一個具體的實例，而不是 `None`。
+    1.  檢查事件匯流排是否已被安裝過，避免重複安裝。
+    2.  遍歷 `trigger_hash_tabel` 中的每一個標籤類別條目。
+    3.  取得該條目下的 `"instance"`。此時它應該是一個具體的實例，而不是 `None`。
     4.  遍歷該條目下的 `"trigger_0"` 和 `"trigger_1"`。
-    5.  **包裝回調函數**:
-        *   根據觸發器配置中的 `publish` 參數，决定是否需要使用 `eventBus.publish_event(publish)` 裝飾器來包裝原始的 `trigger_` 函數。包裝後的函數會在執行完原始邏輯後自動發布指定事件。經過`eventBus.publish_event(publish)` 包裝的函數會用于更新`trigger_hash_tabel`中對應的`func`字段，確保在用戶調用`call()`時，該所需的事件發布功能能生效
-        *   創建一個 **Lambda 函數** `callback`。這個 Lambda 會捕獲當前的觸發器配置 (`current_trigger`) 和實例 (`instance`)，當被調用時，它會執行 `current_trigger["func"](instance)`。**這一步是關鍵**，它將一個普通的類方法 (`HealthLabel.trigger_0`) 和一個具體的實例 (`health_label_instance_23`) 綁定在了一起，形成了一個可以直接調用的函數對象。
-    6.  **注册到事件總綫**: 根據 `listener_args` 中的配置，調用事件總綫對應的 `add_*_listener` 方法，將上一步創建好的 `callback` 函數注册進去。監聽的事件源 (`listen_event`) 就是配置中指定的事件。
-*   **最終狀態**: 此後，全域 `trigger_hash_tabel` 的使命基本完成。事件總綫 (`eventBus`) 內部已經存儲了所有配置好的監聽器回調。當相應事件被發布時，這些回調就會被執行，操作的就是之前安裝的那些具體標簽實例。
+    5.  **包裝回呼函數**:
+        *   根據觸發器配置中的 `publish` 參數，決定是否需要使用 `eventBus.publish_event(publish)` 裝飾器來包裝原始的 `trigger_` 函數。包裝後的函數會在執行完原始邏輯後自動發布指定事件。經過`eventBus.publish_event(publish)` 包裝的函數會用於更新`trigger_hash_tabel`中對應的`func`欄位，確保在用戶呼叫`call()`時，該所需的事件發布功能能生效
+        *   建立一個 **Lambda 函數** `callback`。這個 Lambda 會捕獲目前的觸發器配置 (`current_trigger`) 和實例 (`instance`)，當被呼叫時，它會執行 `current_trigger["func"](instance)`。**這一步是關鍵**，它將一個普通的類別方法 (`HealthLabel.trigger_0`) 和一個具體的實例 (`health_label_instance_23`) 綁定在了一起，形成了一個可以直接呼叫的函數物件。
+    6.  **註冊到事件匯流排**: 根據 `listener_args` 中的配置，呼叫事件匯流排對應的 `add_*_listener` 方法，將上一步建立好的 `callback` 函數註冊進去。監聽的事件源 (`listen_event`) 就是配置中指定的事件。
+*   **最終狀態**: 此後，全域 `trigger_hash_tabel` 的使命基本完成。事件匯流排 (`eventBus`) 內部已經儲存了所有配置好的監聽器回呼。當相應事件被發布時，這些回呼就會被執行，操作的就是之前安裝的那些具體標籤實例。
 
 **`call(label_instance: BaseLabel, action: str)`**:
-*   **調用時機**: 通常由 `LabelTriggerView` 等API視圖調用，用于手動觸發某個標簽的某個動作。
+*   **呼叫時機**: 通常由 `LabelTriggerView` 等API視圖呼叫，用於手動觸發某個標籤的某個動作。
 *   **流程**:
     1.  校驗實例。
-    2.  根據實例的類名和指定的動作 (`'trigger_0'` 或 `'trigger_1'`)，從 `trigger_hash_tabel` 中找出對應的原始函數 (`func`)。
-    3.  **直接調用**這個原始函數，幷傳入 `label_instance` 作爲 `self` 參數：`func(label_instance)`。
-*   **注意**: 這個方法**繞過了事件總綫**。它直接觸發標簽的觸發器邏輯，若原始函數 (`func`)在觸發器配置中的 `publish` 參數不爲None，則會向事件總綫發布指定事件
+    2.  根據實例的類別名稱和指定的動作 (`'trigger_0'` 或 `'trigger_1'`)，從 `trigger_hash_tabel` 中找出對應的原始函數 (`func`)。
+    3.  **直接呼叫**這個原始函數，並傳入 `label_instance` 作為 `self` 參數：`func(label_instance)`。
+*   **注意**: 這個方法**繞過了事件匯流排**。它直接觸發標籤的觸發器邏輯，若原始函數 (`func`)在觸發器配置中的 `publish` 參數不為None，則會向事件匯流排發布指定事件
 
-### 9.3 標簽觸發器管理器 (LabelTriggerManager) 工作流程
+### 9.3 標籤觸發器管理器 (LabelTriggerManager) 工作流程
 
-**描述**: 此圖展示了 `@register_trigger`, `install_instance`, `install_to_eventbus` 三個關鍵階段的協作流程和數據變化。
+**描述**: 此圖展示了 `@register_trigger`, `install_instance`, `install_to_eventbus` 三個關鍵階段的協作流程和資料變化。
 
 
 ```mermaid
@@ -2150,19 +2258,19 @@ sequenceDiagram
     Note right of EB: Callback (bound to specific instance)<br>is now registered in the user's EventBus.
 ```
 
-### 9.4 數據流與協作
-1.  **啓動時 (注册)**:
-    *   導入標簽模型 → 執行 `@register_trigger` 裝飾器 → 填充 `trigger_hash_tabel`（靜態信息）。
-2.  **用戶登錄/啓用時 (安裝)**:
-    *   調用 `StartEventBusEngine` API。
-    *   該視圖獲取用戶專屬的 `EventBus`。
-    *   遍歷用戶的所有標簽實例 → 對每個實例調用 `install_instance` → 更新 `trigger_hash_tabel` 的 `"instance"` 字段（動態引用）。
-    *   調用 `install_to_eventbus` → 讀取 `trigger_hash_tabel` → 爲每個觸發器創建綁定了實例的回調 → 將該回調注册到用戶的 `EventBus` 上。
-3.  **運行時 (觸發)**:
-    *   **方式A (事件驅動)**: 某處代碼 `publish("event_A")` → `EventBus` 找到監聽 `"event_A"` 的回調幷執行 → 回調函數（即綁定了實例的 `trigger_0`）執行 → 修改標簽數據。
-    *   **方式B (直接調用)**: API 調用 `LabelTriggerView` → 其內部調用 `LabelTriggerManager.call(instance, 'trigger_1')` → 直接執行標簽實例的 `trigger_1` 方法。
+### 9.4 資料流與協作
+1.  **啟動時 (註冊)**:
+    *   匯入標籤模型 → 執行 `@register_trigger` 裝飾器 → 填充 `trigger_hash_tabel`（靜態資訊）。
+2.  **用戶登入/啟用時 (安裝)**:
+    *   呼叫 `StartEventBusEngine` API。
+    *   該視圖取得用戶專屬的 `EventBus`。
+    *   遍歷用戶的所有標籤實例 → 對每個實例呼叫 `install_instance` → 更新 `trigger_hash_tabel` 的 `"instance"` 欄位（動態參考）。
+    *   呼叫 `install_to_eventbus` → 讀取 `trigger_hash_tabel` → 為每個觸發器建立綁定了實例的回呼 → 將該回呼註冊到用戶的 `EventBus` 上。
+3.  **執行時 (觸發)**:
+    *   **方式A (事件驅動)**: 某處程式碼 `publish("event_A")` → `EventBus` 找到監聽 `"event_A"` 的回呼並執行 → 回呼函數（即綁定了實例的 `trigger_0`）執行 → 修改標籤資料。
+    *   **方式B (直接呼叫)**: API 呼叫 `LabelTriggerView` → 其內部呼叫 `LabelTriggerManager.call(instance, 'trigger_1')` → 直接執行標籤實例的 `trigger_1` 方法。
 
-### 9.5 事件鏈示例圖 (## 投資組合更新觸發風險評估)
+### 9.5 事件鏈範例圖 (## 投資組合更新觸發風險評估)
 
 **描述**: 此圖展示了一個具體的事件鏈例子，幫助理解量化策略中的響應式風控機制。
 
@@ -2195,31 +2303,31 @@ sequenceDiagram
 ```
 
 
-**解釋**: 用例展示了量化策略中常見的連鎖反應：當投資組合價值發生變化時，系統自動觸發風險評估流程，確保風險控制與資産變動保持同步。
+**解釋**: 用例展示了量化策略中常見的連鎖反應：當投資組合價值發生變化時，系統自動觸發風險評估流程，確保風險控制與資產變動保持同步。
 
 ---
 
-## 10. API 接口詳解
+## 10. API 介面詳解
 
-### 10.1 啓動事件引擎 `GET /api/eventbus/start/`
+### 10.1 啟動事件引擎 `GET /api/eventbus/start/`
 
 **視圖**: `StartEventBusEngine`
 **權限**: `IsAuthenticated`
 **流程**:
-1.  獲取當前登錄用戶的 ID。
-2.  從 `EventBusObjectPool` 中獲取該用戶專屬的 `EventBus` 實例（不存在則創建）。
-3.  **遍歷用戶數據**:
-    *   通過 Django 模型的反向關係 (`user.<related_name>_character.all()`)，找到該用戶創建的所有角色實例。
+1.  取得目前登入用戶的 ID。
+2.  從 `EventBusObjectPool` 中取得該用戶專屬的 `EventBus` 實例（不存在則建立）。
+3.  **遍歷用戶資料**:
+    *   透過 Django 模型的反向關係 (`user.<related_name>_character.all()`)，找到該用戶建立的所有角色實例。
     *   對每個角色實例，使用反射 (`_meta.get_fields()`) 找到所有其關聯的容器實例。
-    *   對每個容器實例，使用反射找到所有其關聯的標簽實例。
-4.  **安裝觸發器**: 對找到的每一個標簽實例，調用 `LabelTriggerManager.install_instance(label_instance)`。
-5.  **注册事件總綫**: 調用 `LabelTriggerManager.install_to_eventbus(eventbus)`，完成所有觸發器在事件總綫上的最終注册。
-6.  返回成功響應。
+    *   對每個容器實例，使用反射找到所有其關聯的標籤實例。
+4.  **安裝觸發器**: 對找到的每一個標籤實例，呼叫 `LabelTriggerManager.install_instance(label_instance)`。
+5.  **註冊事件匯流排**: 呼叫 `LabelTriggerManager.install_to_eventbus(eventbus)`，完成所有觸發器在事件匯流排上的最終註冊。
+6.  傳回成功響應。
 
-**作用**: 此調用是**激活用戶事件驅動功能的必要條件**。它建立了用戶數據（標簽實例）和事件系統之間的連接。
+**作用**: 此呼叫是**啟動用戶事件驅動功能的必要條件**。它建立了用戶資料（標籤實例）和事件系統之間的連接。
 
-**API 請求序列圖 (啓動事件引擎)**
-**描述**: 此圖詳細展示了 `/api/eventbus/start/` API 的調用序列。
+**API 請求序列圖 (啟動事件引擎)**
+**描述**: 此圖詳細展示了 `/api/eventbus/start/` API 的呼叫序列。
 
 ```mermaid
 sequenceDiagram
@@ -2254,25 +2362,25 @@ sequenceDiagram
     API -->> FE: 200 OK: Event engine started
 ```
 
-### 10.2 觸發標簽動作 `POST /api/label/trigger/?label_uuid=...&trigger=...`
+### 10.2 觸發標籤動作 `POST /api/label/trigger/?label_uuid=...&trigger=...`
 
 **視圖**: `LabelTriggerView`
 **權限**: `IsAuthenticated`
 **查詢參數**:
-*   `label_uuid` (必需): 要通過 `InstanceHashTable` 查找的目標標簽實例的 UUID。
+*   `label_uuid` (必需): 要透過 `InstanceHashTable` 查找的目標標籤實例的 UUID。
 *   `trigger` (必需): 要觸發的動作，必須是 `'0'` 或 `'1'`，分別對應 `trigger_0` 和 `trigger_1`。
 
 **流程**:
 1.  校驗參數。
-2.  檢查對應用戶的 `EventBus` 是否已通過 `StartEventBusEngine` 啓動。
-3.  使用 `InstanceHashTable.get_instance_by_uuid(label_uuid)` 通過 UUID 查找到具體的標簽實例。**這是實現跨模型動態查找的關鍵**。
-4.  調用 `LabelTriggerManager.call(label_instance, f'trigger_{trigger}')` **直接執行**指定的觸發器方法。
-5.  手動調用 `eventbus.process()` **處理事件隊列**。這一步至關重要，因爲直接調用 `call()` 可能觸發了一些事件（例如，觸發器函數內部可能調用了 `publish`），需要讓事件總綫處理這些新産生的事件，才能看到完整的鏈式反應效果。
-6.  返回操作結果。
+2.  檢查對應用戶的 `EventBus` 是否已透過 `StartEventBusEngine` 啟動。
+3.  使用 `InstanceHashTable.get_instance_by_uuid(label_uuid)` 透過 UUID 查找到具體的標籤實例。**這是實現跨模型動態查找的關鍵**。
+4.  呼叫 `LabelTriggerManager.call(label_instance, f'trigger_{trigger}')` **直接執行**指定的觸發器方法。
+5.  手動呼叫 `eventbus.process()` **處理事件佇列**。這一步至關重要，因為直接呼叫 `call()` 可能觸發了一些事件（例如，觸發器函數內部可能呼叫了 `publish`），需要讓事件匯流排處理這些新產生的事件，才能看到完整的鏈式反應效果。
+6.  傳回操作結果。
 
-**作用**: 爲前端提供一個通用的接口，手動觸發某個標簽的特定動作，幷推動事件鏈的進行。例如，前端一個"執行回測"按鈕可以調用此 API 來觸發一個策略的"夏普比率"標簽的 `trigger_0`（計算績效指標）動作，這可能進一步觸發風險評估和報表生成等後續事件。
+**作用**: 為前端提供一個通用的介面，手動觸發某個標籤的特定動作，並推動事件鏈的進行。例如，前端一個「執行回測」按鈕可以呼叫此 API 來觸發一個策略的「夏普比率」標籤的 `trigger_0`（計算績效指標）動作，這可能進一步觸發風險評估和報表產生等後續事件。
 
-(有關第10章API接口的文檔隨項目更新中，上次更新日期： 29-8-2025)
+(有關第10章API介面的文件隨項目更新中，上次更新日期： 29-8-2025)
 
 
 
