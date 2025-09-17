@@ -86,13 +86,9 @@ class EventBus:
 
 
     def add_immediate_listener(self, source: str, callback: Callable):
-        """立即触发：source发生 -> 立即执行callback"""
         self.immediate_listeners[source].append(callback)
 
     def add_delayed_listener(self, source: str, delay: int, callback: Callable):
-        """延迟触发：source发生 -> 等待delay个事件后执行callback"""
-
-        #当source事件被发布时，该函数会被立刻调用（因为借用了立即触发器），向最小堆内压入元素：(trigger_at, callback)
         def delayed_callback_wrapper():
             trigger_at = self.event_count + delay #delay的值等于add_delayed_listener中delay参数的值（闭包）
             heapq.heappush(self.delayed_tasks, (trigger_at, callback))
@@ -103,12 +99,10 @@ class EventBus:
         self.add_immediate_listener(source, delayed_callback_wrapper)
 
     def add_joint_listener(self, sources: List[str], callback: Callable):
-        """联合触发：所有sources都发生（无视顺序）-> 执行callback"""
         condition = JointCondition(set(sources), callback)
         self.joint_conditions.append(condition)
 
     def add_pattern_listener(self, pattern: List[str], callback: Callable):
-        """模式触发：事件序列匹配pattern（支持'*'通配）-> 执行callback"""
         matcher = PatternMatcher(pattern, callback)
         self.pattern_matchers.append(matcher)
 
@@ -205,18 +199,14 @@ class PatternMatcher:
         self.state = 0
 
     def on_event(self, event: str):
-        # 当前状态未完成匹配
         if self.state < len(self.pattern):
-            # 检查事件是否匹配当前模式位置
             if self.pattern[self.state] == '*' or self.pattern[self.state] == event:
                 self.state += 1
-                # 完全匹配时触发
                 if self.state == len(self.pattern):
                     logger.info(f"EVENTBUS: event callback <func: {self.callback.__name__}> is triggered")
                     self.callback()
                     self.reset()  # 触发后重置
             else:
-                # 匹配失败时重置状态机，并尝试重新匹配当前事件
                 self.reset()
                 if self.pattern[0] == '*' or self.pattern[0] == event:
                     self.state = 1
@@ -346,6 +336,7 @@ if __name__ == '__main__':
     publish_event_A()
     bus.process(maxStep=1000)
     """
+
 
 
 
